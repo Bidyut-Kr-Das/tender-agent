@@ -69,3 +69,31 @@ class DocumentPage(SQLModel, table=True):
         default_factory=datetime.utcnow,
         sa_column_kwargs={"server_default": func.now()},
     )
+
+
+class AIRelevance(SQLModel, table=True):
+    __tablename__ = "ai_relevance"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    reference_no: str = Field(index=True, max_length=100)
+    company: str = Field(max_length=50)
+    brief: str | None = Field(default=None, sa_type=Text)
+    ai_answer: str | None = Field(default=None, sa_type=Text)
+    ai_reason: str | None = Field(default=None, sa_type=Text)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"server_default": func.now()},
+    )
+
+
+class Feedback(SQLModel, table=True):
+    __tablename__ = "feedback"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    reference_no: str = Field(index=True, max_length=100)
+    company: str = Field(max_length=50)
+    user_feedback: str = Field(sa_type=Text)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"server_default": func.now()},
+    )

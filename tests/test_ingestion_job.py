@@ -2,7 +2,7 @@
 
 Run: uv run python -m tests.test_ingestion_job
 """
-from worker.job import IngestionJob
+from worker.schema.job import IngestionJob
 
 
 def _job(**overrides) -> IngestionJob:

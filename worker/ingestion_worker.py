@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from core.config import settings
 from ingestion.graph import build_ingestion_graph
-from worker.job import IngestionJob
+from worker.schema.job import IngestionJob
 
 INGESTION_QUEUE = "agent:ingestion"
 INTELLIGENCE_QUEUE = "agent:intelligence"

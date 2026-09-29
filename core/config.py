@@ -81,6 +81,9 @@ class Settings(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
+    # relevance feedback vector collection (per-agent, not per-message)
+    relevance_collection: str = "relevance"
+
     # reranker (cross-encoder) — ponytail: env-driven, no hardcode in nodes
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     rerank_device: str = "cpu"
@@ -91,6 +94,10 @@ class Settings(BaseSettings):
     # webhook — notify external system after final synthesis; empty disables
     ted_webhook_url: str | None = None
 
+    # relevance webhook — company-wise endpoints, empty disables
+    laser_url: str | None = None
+    gmd_url: str | None = None
+
     # ponytail: one strip validator for every optional string, was the same four lines x4
     @field_validator(
         "google_oauth_client_id",
@@ -100,10 +107,13 @@ class Settings(BaseSettings):
         "openai_api_key",
         "embedding_model",
         "qdrant_collection",
+        "relevance_collection",
         "rerank_model",
         "rerank_device",
         "chat_model",
         "ted_webhook_url",
+        "laser_url",
+        "gmd_url",
         mode="before",
     )
     @classmethod

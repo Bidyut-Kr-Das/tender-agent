@@ -5,13 +5,24 @@ import pika
 from pydantic import ValidationError
 
 from core.config import settings
-from worker.schema.job import IntelligenceJob
+from worker.schema.job import RelevanceJob
 
-INTELLIGENCE_QUEUE = "agent:intelligence"
+RELEVANCE_QUEUE = "agent:relevance"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 
 logger = logging.getLogger(__name__)
+
+_graph = None  # ponytail: singleton, graph compile once
+
+
+def get_graph():
+    global _graph
+    if _graph is None:
+        from relevance.graph import build_relevance_graph
+
+        _graph = build_relevance_graph()
+    return _graph
 
 
 def connect_rabbitmq() -> pika.BlockingConnection:
@@ -38,36 +49,25 @@ def _safe_ack_nack(ch, method, ack: bool):
         logger.warning("Ack/nack failed (connection lost) delivery_tag=%s error=%s", method.delivery_tag, e)
 
 
-_graph = None  # ponytail: singleton, graph compile once
-
-
-def get_graph():
-    global _graph
-    if _graph is None:
-        from intelligence.graph import build_intelligence_graph
-
-        _graph = build_intelligence_graph()
-    return _graph
-
-
 def handle_message(ch, method, properties, body):
     logger.info("Received raw body=%r", body)
     try:
         payload = json.loads(body)
-        logger.info("Payload parsed: %r", payload)
-        job = IntelligenceJob.model_validate(payload)
-        logger.info("Validated job reference_no=%s tender_type=%r", job.reference_no, job.tender_type)
-        # ponytail: wire 6 agents — reverse_auction, basic_details, emd_agent, gem/non_gem/common document
+        job = RelevanceJob.model_validate(payload)  # base fields gate here; missing -> nack
+        state = {
+            "payload_type": job.payload_type.value,
+            "reference_no": job.reference_no,
+            "company": job.company.value,
+            "extra": job.model_extra or {},
+        }
+        logger.info("Validated job reference_no=%s company=%s payload_type=%s", job.reference_no, job.company, job.payload_type)
         graph = get_graph()
-        result = graph.invoke(
-            {
-                "reference_no": job.reference_no,
-                "tender_type": job.tender_type,
-                "user_query": payload.get("user_query") or payload.get("userQuery") or "",
-                "parsed_request": payload.get("parsed_request") or payload.get("parsedRequest") or {},
-            }
-        )
-        logger.info("Intelligence done ref=%s final=%r", job.reference_no, result.get("final_response"))
+        result = graph.invoke(state)
+        if result.get("status") == "failed":
+            logger.error("Relevance job failed ref=%s error=%s", job.reference_no, result.get("error"))
+            _safe_ack_nack(ch, method, ack=False)
+            return
+        logger.info("Relevance done ref=%s type=%s", job.reference_no, job.payload_type)
         _safe_ack_nack(ch, method, ack=True)
     except ValidationError as e:
         logger.error("Validation failed body=%r errors=%s", body, e.errors())
@@ -80,11 +80,11 @@ def handle_message(ch, method, properties, body):
 def main():
     connection = connect_rabbitmq()
     channel = connection.channel()
-    channel.queue_declare(queue=INTELLIGENCE_QUEUE, durable=True)
+    channel.queue_declare(queue=RELEVANCE_QUEUE, durable=True)
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=INTELLIGENCE_QUEUE, on_message_callback=handle_message)
+    channel.basic_consume(queue=RELEVANCE_QUEUE, on_message_callback=handle_message)
     logger.info("Connected to RabbitMQ")
-    logger.info("Waititing for jobs on: %s", INTELLIGENCE_QUEUE)
+    logger.info("Waititing for jobs on: %s", RELEVANCE_QUEUE)
     try:
         channel.start_consuming()
     except KeyboardInterrupt:

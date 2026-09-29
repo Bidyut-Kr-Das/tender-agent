@@ -1,0 +1,33 @@
+from langgraph.graph import END, START, StateGraph
+
+from relevance.state import RelevanceState
+
+
+def _route(state: dict) -> str:
+    return state.get("payload_type") or "feedback"
+
+
+def build_relevance_graph():
+    from relevance.nodes.analyze import analyze
+    from relevance.nodes.feedback import embed_feedback
+    from relevance.nodes.generate_query import generate_query
+    from relevance.nodes.search import search
+    from relevance.nodes.webhook import send_webhook
+
+    g = StateGraph(RelevanceState)
+    g.add_node("generate_query", generate_query)
+    g.add_node("search", search)
+    g.add_node("analysis", analyze)
+    g.add_node("webhook", send_webhook)
+    g.add_node("feedback", embed_feedback)
+    g.add_conditional_edges(
+        START,
+        _route,
+        {"analysis": "generate_query", "feedback": "feedback"},
+    )
+    g.add_edge("generate_query", "search")
+    g.add_edge("search", "analysis")
+    g.add_edge("analysis", "webhook")
+    g.add_edge("webhook", END)
+    g.add_edge("feedback", END)
+    return g.compile()

@@ -1,6 +1,33 @@
 import re
+from enum import Enum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+
+
+class RelevanceType(str, Enum):
+    analysis = "analysis"
+    feedback = "feedback"
+
+
+class Company(str, Enum):
+    laser = "laser"
+    gmd = "gmd"
+
+
+class RelevanceJob(BaseModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    payload_type: RelevanceType = Field(validation_alias=AliasChoices("payload_type", "payloadType", "type"))
+    reference_no: str = Field(validation_alias=AliasChoices("reference_no", "referenceNo"))
+    company: Company = Field(validation_alias=AliasChoices("company", "companyName"))
+
+    @field_validator("reference_no")
+    @classmethod
+    def check_reference_no(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("referenceNo must be non-empty")
+        return v
 
 
 def normalize_tender_type(v: str | None) -> str:
