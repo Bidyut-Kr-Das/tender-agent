@@ -1,8 +1,16 @@
 import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field, HttpUrl, field_validator
+from sqlmodel import Session, select
 
+from core.webhook_events import WEBHOOK_EVENTS
+from database.connection import get_session
+from database.models import Webhook, new_webhook_secret
 from intelligence.subagents.item.graph import get_item_graph
 from intelligence.subagents.search.graph import get_search_graph
 
@@ -80,3 +88,101 @@ def item(req: ItemRequest):
         status=result.get("status") or "unknown",
         error=result.get("error"),
     )
+
+
+# --- Webhook registration -------------------------------------------------
+
+WebhookEvent = Literal[tuple(WEBHOOK_EVENTS)]  # type: ignore[valid-type]
+
+
+def _dedupe_events(events: list[str] | None) -> list[str] | None:
+    return None if events is None else list(dict.fromkeys(events))
+
+
+class WebhookCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    url: HttpUrl
+    events: list[WebhookEvent] = Field(..., min_length=1)
+
+    _dedupe = field_validator("events")(_dedupe_events)
+
+
+class WebhookUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    url: HttpUrl | None = None
+    events: list[WebhookEvent] | None = Field(default=None, min_length=1)
+    is_active: bool | None = None
+
+    _dedupe = field_validator("events")(_dedupe_events)
+
+
+class WebhookOut(BaseModel):
+    id: int
+    name: str
+    url: str
+    client_id: str
+    secret: str
+    events: list[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+def _get_webhook(session: Session, webhook_id: int) -> Webhook:
+    webhook = session.get(Webhook, webhook_id)
+    if webhook is None:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    return webhook
+
+
+def _save(session: Session, webhook: Webhook) -> Webhook:
+    session.add(webhook)
+    session.commit()
+    session.refresh(webhook)
+    return webhook
+
+
+@app.get("/webhooks", include_in_schema=False)
+def webhooks_page():
+    return FileResponse(Path(__file__).parent / "static" / "webhooks.html")
+
+
+@app.get("/api/webhooks/events")
+def list_webhook_events():
+    return [{"name": name, "description": desc} for name, desc in WEBHOOK_EVENTS.items()]
+
+
+@app.get("/api/webhooks", response_model=list[WebhookOut])
+def list_webhooks(session: Session = Depends(get_session)):
+    return session.exec(select(Webhook).order_by(Webhook.id.desc())).all()
+
+
+@app.post("/api/webhooks", response_model=WebhookOut, status_code=201)
+def create_webhook(req: WebhookCreate, session: Session = Depends(get_session)):
+    return _save(session, Webhook(name=req.name.strip(), url=str(req.url), events=req.events))
+
+
+@app.patch("/api/webhooks/{webhook_id}", response_model=WebhookOut)
+def update_webhook(webhook_id: int, req: WebhookUpdate, session: Session = Depends(get_session)):
+    webhook = _get_webhook(session, webhook_id)
+    changes = req.model_dump(exclude_none=True)
+    if "url" in changes:
+        changes["url"] = str(req.url)
+    if "name" in changes:
+        changes["name"] = changes["name"].strip()
+    for key, value in changes.items():
+        setattr(webhook, key, value)
+    return _save(session, webhook)
+
+
+@app.post("/api/webhooks/{webhook_id}/rotate-secret", response_model=WebhookOut)
+def rotate_webhook_secret(webhook_id: int, session: Session = Depends(get_session)):
+    webhook = _get_webhook(session, webhook_id)
+    webhook.secret = new_webhook_secret()
+    return _save(session, webhook)
+
+
+@app.delete("/api/webhooks/{webhook_id}", status_code=204)
+def delete_webhook(webhook_id: int, session: Session = Depends(get_session)):
+    session.delete(_get_webhook(session, webhook_id))
+    session.commit()
