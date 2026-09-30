@@ -5,6 +5,7 @@ import pika
 from pydantic import ValidationError
 
 from core.config import settings
+from core.webhook_dispatch import client_id_from, job_events
 from ingestion.graph import build_ingestion_graph
 from worker.schema.job import IngestionJob
 
@@ -64,12 +65,12 @@ def _safe_ack_nack(ch, method, ack: bool):
         logger.warning("Ack/nack failed (connection lost) delivery_tag=%s error=%s", method.delivery_tag, e)
 
 
-def _publish_intelligence(reference_no: str, tender_type: str = ""):
+def _publish_intelligence(reference_no: str, tender_type: str = "", client_id: str | None = None):
     # ponytail: was `"GEM" if "gem" in reference_no.lower() else "NON_GEM"` — a substring test that
     # called any reference containing "gem" (GEMINI, NONGEM-…) a GeM tender, and asserted every other
     # reference was definitively non-GeM. The type now comes from the job; "" means unknown, which
     # runs the common documents only.
-    payload = json.dumps({"referenceNo": reference_no, "tender_type": tender_type})
+    payload = json.dumps({"referenceNo": reference_no, "tender_type": tender_type, "client_id": client_id})
     conn = None
     try:
         conn = connect_rabbitmq()
@@ -92,22 +93,43 @@ def handle_message(ch, method, properties, body):
     try:
         payload = json.loads(body)
         logger.info("Payload parsed: %r", payload)
-        job = IngestionJob.model_validate(payload)
-        logger.info("Validated job job_id=%s reference_no=%s files=%s", job.job_id, job.reference_no, len(job.files))
-        for state in job.to_file_states():  # ponytail: sequential per-file, parallel fan-out if throughput matters
-            logger.info("Invoking graph job_id=%s payload=%r", job.job_id, state)
-            # ponytail: thread_id = job_id:document_id or external id for resumable checkpoints per doc
-            # ponytail: single thread_id per file, avoids cross-file checkpoint collision
-            tid = f"{job.job_id}:{state.get('external_document_id') or state.get('file_url')}"
-            config = {"configurable": {"thread_id": tid}}
-            result = _graph.invoke(state, config=config) if _checkpointer else _graph.invoke(state)
-            logger.info("Graph result job_id=%s status=%s file_path=%s error=%s", job.job_id, result.get("status"), result.get("file_path"), result.get("error"))
-            if result.get("status") == "failed":
-                logger.error("Job %s failed file=%s error=%s", job.job_id, state.get("file_url"), result.get("error"))
-                _safe_ack_nack(ch, method, ack=False)
-                return
-            logger.info("Job %s file done: %s -> %s", job.job_id, result.get("status"), result.get("file_path"))
-        _publish_intelligence(job.reference_no, job.tender_type)
+        client_id = client_id_from(payload)
+        with job_events(
+            "document.ingested",
+            client_id,
+            job_id=payload.get("job_id") or payload.get("jobId"),
+            reference_no=payload.get("reference_no") or payload.get("referenceNo"),
+        ) as outcome:
+            job = IngestionJob.model_validate(payload)
+            outcome.ids.update(job_id=job.job_id, reference_no=job.reference_no, tender_type=job.tender_type)
+            logger.info("Validated job job_id=%s reference_no=%s files=%s", job.job_id, job.reference_no, len(job.files))
+            files = []
+            outcome.result = {"files": files}  # partial result if a later file raises
+            for state in job.to_file_states():  # ponytail: sequential per-file, parallel fan-out if throughput matters
+                logger.info("Invoking graph job_id=%s payload=%r", job.job_id, state)
+                # ponytail: thread_id = job_id:document_id or external id for resumable checkpoints per doc
+                # ponytail: single thread_id per file, avoids cross-file checkpoint collision
+                tid = f"{job.job_id}:{state.get('external_document_id') or state.get('file_url')}"
+                config = {"configurable": {"thread_id": tid}}
+                result = _graph.invoke(state, config=config) if _checkpointer else _graph.invoke(state)
+                logger.info("Graph result job_id=%s status=%s file_path=%s error=%s", job.job_id, result.get("status"), result.get("file_path"), result.get("error"))
+                files.append({
+                    "document_id": result.get("document_id"),
+                    "external_document_id": state.get("external_document_id"),
+                    "file_url": state.get("file_url"),
+                    "status": result.get("status"),
+                    "chunk_count": result.get("chunk_count"),
+                    "total_pages": result.get("total_pages"),
+                    "error": result.get("error"),
+                })
+                if result.get("status") == "failed":
+                    logger.error("Job %s failed file=%s error=%s", job.job_id, state.get("file_url"), result.get("error"))
+                    outcome.fail(f"{state.get('file_url')}: {result.get('error') or 'ingestion failed'}", {"files": files})
+                    _safe_ack_nack(ch, method, ack=False)
+                    return
+                logger.info("Job %s file done: %s -> %s", job.job_id, result.get("status"), result.get("file_path"))
+            outcome.succeed({"files": files})
+        _publish_intelligence(job.reference_no, job.tender_type, client_id)
         _safe_ack_nack(ch, method, ack=True)
     except ValidationError as e:
         logger.error("Validation failed body=%r errors=%s", body, e.errors())

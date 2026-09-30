@@ -5,6 +5,7 @@ import pika
 from pydantic import ValidationError
 
 from core.config import settings
+from core.webhook_dispatch import client_id_from, job_events
 from worker.schema.job import IntelligenceJob
 
 INTELLIGENCE_QUEUE = "agent:intelligence"
@@ -55,19 +56,31 @@ def handle_message(ch, method, properties, body):
     try:
         payload = json.loads(body)
         logger.info("Payload parsed: %r", payload)
-        job = IntelligenceJob.model_validate(payload)
-        logger.info("Validated job reference_no=%s tender_type=%r", job.reference_no, job.tender_type)
-        # ponytail: wire 6 agents — reverse_auction, basic_details, emd_agent, gem/non_gem/common document
-        graph = get_graph()
-        result = graph.invoke(
-            {
-                "reference_no": job.reference_no,
-                "tender_type": job.tender_type,
-                "user_query": payload.get("user_query") or payload.get("userQuery") or "",
-                "parsed_request": payload.get("parsed_request") or payload.get("parsedRequest") or {},
-            }
-        )
-        logger.info("Intelligence done ref=%s final=%r", job.reference_no, result.get("final_response"))
+        with job_events(
+            "intelligence.completed",
+            client_id_from(payload),
+            reference_no=payload.get("reference_no") or payload.get("referenceNo"),
+        ) as outcome:
+            job = IntelligenceJob.model_validate(payload)
+            outcome.ids.update(reference_no=job.reference_no, tender_type=job.tender_type)
+            logger.info("Validated job reference_no=%s tender_type=%r", job.reference_no, job.tender_type)
+            # ponytail: wire 6 agents — reverse_auction, basic_details, emd_agent, gem/non_gem/common document
+            graph = get_graph()
+            result = graph.invoke(
+                {
+                    "reference_no": job.reference_no,
+                    "tender_type": job.tender_type,
+                    "user_query": payload.get("user_query") or payload.get("userQuery") or "",
+                    "parsed_request": payload.get("parsed_request") or payload.get("parsedRequest") or {},
+                }
+            )
+            final = result.get("final_response") or {}
+            logger.info("Intelligence done ref=%s final=%r", job.reference_no, final)
+            # Partial reports count as success; the failed/degraded lists travel inside the result.
+            if final.get("sections"):
+                outcome.succeed(final)
+            else:
+                outcome.fail("; ".join(map(str, result.get("errors") or [])) or "no sections produced", final or None)
         _safe_ack_nack(ch, method, ack=True)
     except ValidationError as e:
         logger.error("Validation failed body=%r errors=%s", body, e.errors())
