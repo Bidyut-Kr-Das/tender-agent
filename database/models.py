@@ -1,7 +1,16 @@
+import secrets
 from datetime import datetime
 
-from sqlalchemy import Text, func
+from sqlalchemy import Column, Text, func
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Field, SQLModel
+
+def new_client_id() -> str:
+    return f"whk_{secrets.token_hex(8)}"
+
+
+def new_webhook_secret() -> str:
+    return f"whsec_{secrets.token_urlsafe(32)}"
 
 
 class User(SQLModel, table=True):
@@ -96,4 +105,25 @@ class Feedback(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column_kwargs={"server_default": func.now()},
+    )
+
+
+class Webhook(SQLModel, table=True):
+    __tablename__ = "webhooks"  # type: ignore[assignment]
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=100)
+    url: str = Field(sa_type=Text)
+    client_id: str = Field(default_factory=new_client_id, unique=True, index=True, max_length=40)
+    # Plaintext on purpose: the dispatcher needs it to sign payloads (HMAC).
+    secret: str = Field(default_factory=new_webhook_secret, max_length=100)
+    events: list[str] = Field(default_factory=list, sa_column=Column(ARRAY(Text), nullable=False))
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"server_default": func.now()},
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_column_kwargs={"server_default": func.now(), "onupdate": func.now()},
     )

@@ -5,6 +5,7 @@ import pika
 from pydantic import ValidationError
 
 from core.config import settings
+from core.webhook_dispatch import client_id_from, job_events
 from worker.schema.job import RelevanceJob
 
 RELEVANCE_QUEUE = "agent:relevance"
@@ -49,26 +50,53 @@ def _safe_ack_nack(ch, method, ack: bool):
         logger.warning("Ack/nack failed (connection lost) delivery_tag=%s error=%s", method.delivery_tag, e)
 
 
+EVENT_BASE = {"analysis": "relevance.analyzed", "feedback": "relevance.feedback"}
+
+
+def _run(ch, method, payload, outcome=None):
+    job = RelevanceJob.model_validate(payload)  # base fields gate here; missing -> nack
+    state = {
+        "payload_type": job.payload_type.value,
+        "reference_no": job.reference_no,
+        "company": job.company.value,
+        # client_id is routing only; feedback embeds every extra key, so keep it out.
+        "extra": {k: v for k, v in (job.model_extra or {}).items() if k not in ("client_id", "clientId")},
+    }
+    logger.info("Validated job reference_no=%s company=%s payload_type=%s", job.reference_no, job.company, job.payload_type)
+    result = get_graph().invoke(state)
+    if outcome is not None:
+        outcome.ids.update(reference_no=job.reference_no, company=job.company.value)
+        is_analysis = job.payload_type.value == "analysis"
+        data = result.get("verdict") if is_analysis else {"vector_ids": result.get("vector_ids") or []}
+        if result.get("status") == ("analyzed" if is_analysis else "indexed"):
+            outcome.succeed(data)
+        else:
+            outcome.fail(result.get("error") or f"status {result.get('status')!r}", data or None)
+    if result.get("status") == "failed":
+        logger.error("Relevance job failed ref=%s error=%s", job.reference_no, result.get("error"))
+        _safe_ack_nack(ch, method, ack=False)
+        return
+    logger.info("Relevance done ref=%s type=%s", job.reference_no, job.payload_type)
+    _safe_ack_nack(ch, method, ack=True)
+
+
 def handle_message(ch, method, properties, body):
     logger.info("Received raw body=%r", body)
     try:
         payload = json.loads(body)
-        job = RelevanceJob.model_validate(payload)  # base fields gate here; missing -> nack
-        state = {
-            "payload_type": job.payload_type.value,
-            "reference_no": job.reference_no,
-            "company": job.company.value,
-            "extra": job.model_extra or {},
-        }
-        logger.info("Validated job reference_no=%s company=%s payload_type=%s", job.reference_no, job.company, job.payload_type)
-        graph = get_graph()
-        result = graph.invoke(state)
-        if result.get("status") == "failed":
-            logger.error("Relevance job failed ref=%s error=%s", job.reference_no, result.get("error"))
-            _safe_ack_nack(ch, method, ack=False)
+        payload_type = payload.get("payload_type") or payload.get("payloadType") or payload.get("type")
+        base = EVENT_BASE.get(payload_type)
+        if base is None:
+            # Unknown type has no event; validation inside _run rejects the job.
+            _run(ch, method, payload)
             return
-        logger.info("Relevance done ref=%s type=%s", job.reference_no, job.payload_type)
-        _safe_ack_nack(ch, method, ack=True)
+        with job_events(
+            base,
+            client_id_from(payload),
+            reference_no=payload.get("reference_no") or payload.get("referenceNo"),
+            company=payload.get("company") or payload.get("companyName"),
+        ) as outcome:
+            _run(ch, method, payload, outcome)
     except ValidationError as e:
         logger.error("Validation failed body=%r errors=%s", body, e.errors())
         _safe_ack_nack(ch, method, ack=False)
