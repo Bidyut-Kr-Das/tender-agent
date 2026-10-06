@@ -286,10 +286,139 @@ WATER_DISTRIBUTION = _epc_prompt(
 - Retrofitting of Pipes Water Supply
 - Survey, Investigation, Design & Construction of Piped Water Supply
 - Schemes: RWSS / PH (Public Health) / WATCO / Irrigation / Jal Jeevan Mission (JJM) / AMRUT 2.0""",
-    """- Generic words such as "Supply Infrastructure", "Pipeline Laying", "Pump House" or "Construction of Distribution System" count ONLY in a water supply, sewerage or irrigation context. Gas, oil, power or other non-water pipelines and distribution systems do NOT count.""",
+    """- Generic words such as "Supply Infrastructure", "Pipeline Laying", "Pump House" or "Construction of Distribution System" count ONLY in a water supply, sewerage or irrigation context. Gas, oil, power or other non-water pipelines and distribution systems do NOT count.
+- Valve rule: if the tender mentions valves AND involves the SUPPLY of valves (supply, procurement, purchase, delivery of valves), set valid to false and relevance to NONE, because that is a valve-supply tender and not a water distribution EPC tender; this company does not participate in valve supply.""",
 )
 
-RAILWAYS = ""  # placeholder, blank falls back to DEFAULT until keywords arrive
+RAILWAYS = _epc_prompt(
+    "RAILWAYS",
+    """Railway (core)
+- EPC Railway Electrification
+- Turnkey Railway Electrification
+- Railway Electrification (RE) Work
+- Overhead Equipment / OHE
+- 25 kV OHE / 25 kV AC Traction
+- Overhead Electrification / OHE System
+- Traction Substation / TSS / Traction Power Supply
+- Feeding Post / Sectioning Post / Sub-sectioning Post
+- Traction SCADA / SCADA System
+- Railway Track / Track Doubling / Gauge Conversion
+- New Railway Line / Railway Line Construction
+- Railway Bridge / ROB / RUB / Flyover
+- Railway Siding / Private Siding / Industrial Siding
+- Metro Rail / Metro / MRTS / RRTS
+- Signalling and Telecommunication (S&T)
+- Railway Station / Coaching Depot / Railway Building
+- Design, Supply, Erection, Testing and Commissioning of Railway Electrification
+- OPGW (Optical Ground Wire) on Railway
+- Railway Electrification of Section
+- Electric Loco / Traction Distribution
+- Railway EPC / Turnkey Railway Project
+
+Power Distribution
+- Power
+- Substation / PSS / GIS / AIS
+- Power / Electrical Infrastructure
+- High Voltage Distribution
+- Overhead Line / Stringing / Conductor Stringing
+- Underground Cabling / UG Cable
+- 11 KV / 33 KV Line
+- RDSS (Revamped Distribution Sector Scheme)
+- Revamped
+- Loss Reduction
+- Modernization
+- Off Grid / On Grid Distribution Modernization
+- Bay Extension
+- HT / LT Line Distribution
+- Augmentation / Reconductoring
+- LV Distribution
+- Rural Electrification
+- Covered Conductor / MVCC
+- RMU / SCADA
+- Compact Substations
+- HTLS Conductors
+- SITC (Supply, Installation, Testing & Commissioning)
+
+Power Transmission
+- EPC / turnkey transmission line
+- EPC / turnkey substation
+- 132 kV / 220 kV transmission line EPC
+- 132/33 kV substation turnkey
+- 132 kV / 220 kV AIS / GIS substation
+- 220/132 kV substation EPC
+- Design, supply, erection and commissioning of 132 kV transmission line
+- Design, supply, erection and commissioning of 220 kV transmission line
+- 132 kV GIS substation EPC
+- 220 kV AIS substation turnkey
+- Augmentation of 132 kV / 220 kV substation
+- 66 kV / 132 kV / 220 kV / 400 kV
+- HTLS Transmission Line (66 kV to 400 kV)
+- Reconductoring / Re-Strengthening / Revival of Transmission Line
+- SITC of Transmission Line Towers / Monopoles
+
+Solar
+- EPC Solar Power
+- Turnkey Solar Projects
+- Grid Connected Solar
+- Ground Mounted Solar
+- Rooftop Solar
+- Utility Scale Solar
+- Solar Energy
+- Design-supply-install solar
+- Solar PV
+- Solar Power System
+- Solar Energy Infrastructure
+- PV Module EPC
+- Solar Inverter
+- Floating Solar
+- Renewable energy solar
+- Off-grid solar project
+- Hybrid solar project
+- Distributed solar power
+- Solar microgrid / minigrid
+- Residential / commercial solar project
+- Solar Water Pumping System
+- Battery Energy Storage System (BESS)
+- Solar Module
+
+Water Distribution
+- EPC water supply
+- Turnkey Water Supply
+- Water Distribution System / Network
+- Drinking Water
+- Water Pipeline
+- Rural / Urban Piped Water Supply
+- Supply Infrastructure
+- Integrated water supply
+- Water Treatment Plant (WTP)
+- Sewage Treatment Plant (STP)
+- Water Supply Network
+- Intake Well
+- Overhead Reservoir (OHR)
+- Underground Reservoir (UGR)
+- Distribution Network Water Supply
+- Clear Water Reservoir (CWR)
+- Pipeline Laying
+- DI Pipeline
+- Augmentation of Water Supply
+- Underground Pipeline Irrigation System
+- Minor Canal
+- Construction of Distribution System
+- Rising Main
+- DI / MS / HDPE Pipeline
+- Elevated Service Reservoir (ESR)
+- Pump House
+- Gravity Pipe Line System
+- Command Area Development
+- Raw Water / Clear Water
+- Retrofitting of Pipes Water Supply
+- Survey, Investigation, Design & Construction of Piped Water Supply
+- Schemes: RWSS / PH (Public Health) / WATCO / Irrigation / Jal Jeevan Mission (JJM) / AMRUT 2.0""",
+    """- Generic words such as "Power", "Revamped", "Modernization", "Supply Infrastructure", "Pipeline Laying", "Pump House" or "Construction of Distribution System" count ONLY in the relevant electrical power, water supply, sewerage or irrigation context; the same words in unrelated contexts (power tools, power of attorney, gas/oil pipelines) do NOT count.
+- Voltage rule: for railway works, electrical work at ANY voltage counts (both distribution at 33 kV and below AND transmission above 33 kV are eligible). In a paired rating such as "132/33 kV" use the higher voltage only to classify, never to exclude.
+- Solar keyword counts only when the solar scope is electrical power generation or storage (PV plants, rooftop/ground/floating systems, solar pumping, microgrids, BESS); standalone solar street lights, solar lanterns, solar water heaters or solar cables alone do NOT count.
+- OPGW rule: If the tender mentions OPGW but does NOT involve the SUPPLY of OPGW, this by itself does NOT disqualify the tender; OPGW works such as stringing, laying or installation as part of railway work may qualify normally. If the tender involves the SUPPLY (supply, procurement, purchase, delivery) of OPGW cable, set valid to false and relevance to NONE, because that is a cable-supply tender and not a railway EPC tender.""",
+)
 
 # key = "<company>_<category>". missing category -> company default below.
 PROMPTS = {

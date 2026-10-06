@@ -37,7 +37,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
 
     tenderamount = str(state.get("tender_amount") or "").strip()
     company = str(state.get("company") or "").lower()
-    category = state.get("category") or DEFAULT_CATEGORY.get(company) or ""
+    category = str(state.get("category") or extra.get("category") or DEFAULT_CATEGORY.get(company) or "").strip().lower()
     prompt_key = f"{company}_{category}"
     system_prompt = (PROMPTS.get(prompt_key) or "").strip()
     if not system_prompt:
@@ -55,7 +55,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
         )
         if not result:
             raise ValueError("empty structured output")
-        verdict = {"valid": result.valid, "reason": result.reason}
+        verdict = {"valid": result.valid, "reason": result.reason, "category": category}
         logger.info("analyze ref=%s valid=%s", ref, result.valid)
     except Exception as e:
         err = f"{type(e).__name__}: {e}"
