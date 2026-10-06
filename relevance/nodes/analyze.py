@@ -7,8 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from database.connection import get_session_context
 from database.models import AIRelevance
 from intelligence.llm import get_llm
-from relevance.prompts import DEFAULT, PROMPTS
-from relevance.prompts import DEFAULT, PROMPTS
+from relevance.prompts import DEFAULT, DEFAULT_CATEGORY, PROMPTS
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +35,13 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
         f"[score {h.get('score', 0):.3f}]\n{h.get('text') or ''}" for h in hits if h.get("text")
     ) or "(no feedback chunks found)"
 
+    tenderamount = str(state.get("tender_amount") or "").strip()
     company = str(state.get("company") or "").lower()
-    system_prompt = (PROMPTS.get(company) or DEFAULT).strip()
+    category = state.get("category") or DEFAULT_CATEGORY.get(company) or ""
+    prompt_key = f"{company}_{category}"
+    system_prompt = (PROMPTS.get(prompt_key) or "").strip()
     if not system_prompt:
-        logger.warning("prompt blank for company=%s, falling back to default", company)
+        logger.warning("no prompt for key=%s, falling back to default", prompt_key)
         system_prompt = DEFAULT
 
     try:
@@ -48,7 +50,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
         result = structured.invoke(
             [
                 ("system", system_prompt),
-("human", f"item category: {itemcategory or 'unspecified'}\nbrief: {brief}\n\nprior feedback:\n{feedback_text}"),
+                ("human", f"item category: {itemcategory or 'unspecified'}\ntender amount: {tenderamount or 'unspecified'}\nbrief: {brief}\n\nprior feedback:\n{feedback_text}"),
             ]
         )
         if not result:

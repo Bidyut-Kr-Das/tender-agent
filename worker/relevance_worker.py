@@ -59,6 +59,8 @@ def _run(ch, method, payload, outcome=None):
         "payload_type": job.payload_type.value,
         "reference_no": job.reference_no,
         "company": job.company.value,
+        "category": job.category,
+        "tender_amount": job.tender_amount,
         # client_id is routing only; feedback embeds every extra key, so keep it out.
         "extra": {k: v for k, v in (job.model_extra or {}).items() if k not in ("client_id", "clientId")},
     }

@@ -20,6 +20,15 @@ class RelevanceJob(BaseModel):
     payload_type: RelevanceType = Field(validation_alias=AliasChoices("payload_type", "payloadType", "type"))
     reference_no: str = Field(validation_alias=AliasChoices("reference_no", "referenceNo"))
     company: Company = Field(validation_alias=AliasChoices("company", "companyName"))
+    # picks the system prompt with company; "" -> company default (laser: cable_conductor, gmd: valve)
+    category: str = Field(default="", validation_alias=AliasChoices("category", "tenderCategory", "tender_category"))
+    # raw amount as sent (number or text like "6.5 Cr"); prompt interprets it
+    tender_amount: float | str | None = Field(default=None, validation_alias=AliasChoices("tender_amount", "tenderAmount", "tenderamount"))
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def check_category(cls, v: str | None) -> str:
+        return str(v or "").strip().lower().replace(" ", "_").replace("-", "_")
 
     @field_validator("reference_no")
     @classmethod
