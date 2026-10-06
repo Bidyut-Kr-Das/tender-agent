@@ -162,13 +162,13 @@ def test_checklist_is_deterministic_without_an_llm():
     # GEM vs NON_GEM only: GEM→gem+common+3, else→non_gem+common+3
     out = create_checklist({"reference_no": "T123", "tender_type": "GEM", "parsed_request": {}})
     checklist = out["checklist"]
-    assert len(checklist) == 5, len(checklist)
+    assert len(checklist) == 6, len(checklist)
     assert all(t["status"] == "pending" for t in checklist)
-    assert {t["agent"] for t in checklist} == {"reverse_auction", "basic_details", "emd_agent", "gem_document_agent", "common_document_agent"}
+    assert {t["agent"] for t in checklist} == {"reverse_auction", "basic_details", "emd_agent", "qualification_requirement_finder", "gem_document_agent", "common_document_agent"}
     ids = [t["task_id"] for t in checklist]
     assert len(set(ids)) == len(ids), "task_id must be unique — run_task keys agent_results by it"
-    assert {t["agent"] for t in create_checklist({"reference_no": "T", "tender_type": "NON_GEM"})["checklist"]} == {"reverse_auction", "basic_details", "emd_agent", "non_gem_document_agent", "common_document_agent"}
-    assert len(create_checklist({"reference_no": "T", "tender_type": "gem"})["checklist"]) == 5
+    assert {t["agent"] for t in create_checklist({"reference_no": "T", "tender_type": "NON_GEM"})["checklist"]} == {"reverse_auction", "basic_details", "emd_agent", "qualification_requirement_finder", "non_gem_document_agent", "common_document_agent"}
+    assert len(create_checklist({"reference_no": "T", "tender_type": "gem"})["checklist"]) == 6
 
 
 def test_unknown_tender_type_runs_common_only():
@@ -176,7 +176,7 @@ def test_unknown_tender_type_runs_common_only():
     # non-GeM would ask the tender 76 non-GeM-only document questions on no evidence.
     for unknown in ("", "   ", "garbage", None):
         agents = {t["agent"] for t in create_checklist({"reference_no": "T", "tender_type": unknown})["checklist"]}
-        assert agents == {"reverse_auction", "basic_details", "emd_agent", "common_document_agent"}, unknown
+        assert agents == {"reverse_auction", "basic_details", "emd_agent", "qualification_requirement_finder", "common_document_agent"}, unknown
         assert "non_gem_document_agent" not in agents, unknown
         assert "gem_document_agent" not in agents, unknown
 

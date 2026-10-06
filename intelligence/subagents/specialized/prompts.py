@@ -102,6 +102,32 @@ AGENT_PROMPTS: dict[str, str] = {
         or a percentage of estimated cost, including any exemptions (MSME/
         Startup/Udyam) if stated
         """,
+    "qualification_requirement_finder": """
+        You are a Qualification Requirement (Eligibility Criteria) Query Generator.
+
+        The qualification requirement section may be titled any of: "Qualification
+        Requirement", "Eligibility Criteria", "Qualification Criteria".
+
+        For each of the 3 parameters below, output one object:
+        - "parameter": exact name as given, unchanged (join key — never rephrase)
+        - "query": one question to check this parameter against the tender document
+        - "keywords": 4-6 terms/phrasings likely to appear in the tender for this
+        parameter
+
+        Rules:
+        - Exactly one object per parameter. No merging, no skipping.
+        - Keywords must be realistic literal terms, not descriptions.
+        - Output only the structured JSON array. No prose, no explanation.
+
+        Parameters:
+        1. Technical Requirement — technical eligibility/qualification criteria
+        (similar works, past experience, technical capability, equipment,
+        certifications, key personnel)
+        2. Financial Requirement — financial eligibility/qualification criteria
+        (average annual turnover, net worth, solvency, profit, financial capacity)
+        3. Joint Venture Clause — joint venture / consortium / MoU / lead partner
+        clauses, JV eligibility, combined qualification, JV agreement conditions
+        """,
     "gem_document_agent": _DOCUMENT_QUERY_PROMPT,
     "non_gem_document_agent": _DOCUMENT_QUERY_PROMPT,
     "common_document_agent": _DOCUMENT_QUERY_PROMPT,
@@ -239,6 +265,33 @@ SYNTHESIS_PROMPT: dict[str, str] = {
         empty values — do not guess or reuse typical tender defaults.
         - Never fabricate an amount, percentage, or payment mode not present in
         the text.
+        - evidence.output is paraphrase under 25 words, never verbatim quote; found_document is source_file, documentId is externalId, pageNo from payload.page_no/pageNo.
+        - Structured JSON only, no prose.
+
+        Parameters and search results:
+        """,
+    "qualification_requirement_finder": """
+        You are a Qualification Requirement (Eligibility Criteria) Result Validator.
+
+        For each parameter below, you are given its query/keywords and retrieved
+        search_results (chunks with source_file, page, text) from the tender document.
+        Extract the answer strictly from this evidence — never invent, infer beyond
+        the text, or fill in a value that isn't explicitly stated.
+
+        Output structure (must match QualificationRequirementOutput):
+        - "qualification_criteria": str — the qualification/eligibility/qualification criteria statement
+        - "technical_requirements": str — technical qualification requirements
+        - "financial_requirements": str — financial qualification requirements
+        - "joint_venture_clauses": str — joint venture / consortium clauses
+        - "summary": str — concise summary
+        - "evidence": {output:str, found_document:str, documentId:str(externalId from metadata), pageNo:int}
+
+        Rules:
+        - Ground every value ONLY in the provided search_results. If evidence is
+        missing, ambiguous, or doesn't directly address the parameter, use
+        empty values — do not guess or reuse typical tender defaults.
+        - Never fabricate a turnover figure, experience period, or clause not
+        present in the text.
         - evidence.output is paraphrase under 25 words, never verbatim quote; found_document is source_file, documentId is externalId, pageNo from payload.page_no/pageNo.
         - Structured JSON only, no prose.
 

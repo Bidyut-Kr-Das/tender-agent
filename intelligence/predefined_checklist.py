@@ -7,6 +7,7 @@ _BASE_AGENTS = [
     "reverse_auction",
     "basic_details",
     "emd_agent",
+    "qualification_requirement_finder",
 ]
 
 

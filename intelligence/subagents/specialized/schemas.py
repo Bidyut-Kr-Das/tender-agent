@@ -80,6 +80,15 @@ class EMDAgentOutput(BaseModel):
     evidence: Evidence = Field(default_factory=Evidence, description="grounding evidence")
 
 
+class QualificationRequirementOutput(BaseModel):
+    qualification_criteria: str = Field(default="", description="the qualification/eligibility/qualification criteria statement")
+    technical_requirements: str = Field(default="", description="technical qualification requirements")
+    financial_requirements: str = Field(default="", description="financial qualification requirements")
+    joint_venture_clauses: str = Field(default="", description="joint venture / consortium clauses")
+    summary: str = Field(default="", description="concise summary")
+    evidence: Evidence = Field(default_factory=Evidence, description="grounding evidence")
+
+
 class GemDocumentOutput(BaseModel):
     documents: list[str] = Field(default_factory=list, description="gem documents required")
     summary: str = Field(default="", description="concise summary")
@@ -109,6 +118,7 @@ AGENT_OUTPUT_MODELS: dict[str, type[BaseModel]] = {
     "reverse_auction": ReverseAuctionOutput,
     "basic_details": BasicDetailsOutput,
     "emd_agent": EMDAgentOutput,
+    "qualification_requirement_finder": QualificationRequirementOutput,
     "gem_document_agent": GemDocumentOutput,
     "non_gem_document_agent": NonGemDocumentOutput,
     "common_document_agent": CommonDocumentOutput,

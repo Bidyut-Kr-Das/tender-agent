@@ -13,6 +13,7 @@ AVAILABLE_AGENTS = [
     "reverse_auction",
     "basic_details",
     "emd_agent",
+    "qualification_requirement_finder",
     "gem_document_agent",
     "non_gem_document_agent",
     "common_document_agent",
