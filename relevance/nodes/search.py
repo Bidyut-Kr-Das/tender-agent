@@ -1,8 +1,6 @@
 import logging
 from typing import Any
 
-from qdrant_client.http.models import FieldCondition, Filter, MatchValue
-
 from core.config import settings
 from vector.embeddings import get_dense
 from vector.qdrant import ensure_collection, qdrant
@@ -34,7 +32,6 @@ def search(state: dict[str, Any]) -> dict[str, Any]:
             using="dense",
             limit=3,
             with_payload=True,
-            query_filter=Filter(must=[FieldCondition(key="reference_no", match=MatchValue(value=ref))]),
         )
         points = res.points if hasattr(res, "points") else []
         hits = []
