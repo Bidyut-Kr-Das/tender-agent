@@ -45,7 +45,17 @@ def search(state: dict[str, Any]) -> dict[str, Any]:
                     "payload": payload,
                 }
             )
-        logger.info("relevance search ref=%s query=%r hits=%s", ref, query[:80], len(hits))
+        logger.info(
+            "relevance search ref=%s collection=%s query=%r hits=%s",
+            ref, coll, query[:120], len(hits),
+        )
+        for i, h in enumerate(hits):
+            logger.info(
+                "relevance hit #%s ref=%s score=%.4f id=%s text=%r",
+                i, ref, h.get("score", 0.0), h.get("id"), (h.get("text") or "")[:300],
+            )
+        if not hits:
+            logger.warning("relevance search returned 0 feedback chunks ref=%s collection=%s", ref, coll)
         return {"hits": hits, "status": "searched", "error": None}
     except Exception as e:
         err = f"qdrant query failed: {type(e).__name__}: {e}"

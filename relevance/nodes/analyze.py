@@ -34,6 +34,10 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
     feedback_text = "\n\n".join(
         f"[score {h.get('score', 0):.3f}]\n{h.get('text') or ''}" for h in hits if h.get("text")
     ) or "(no feedback chunks found)"
+    logger.info(
+        "analyze ref=%s feedback_hits=%s feedback_text=%r",
+        ref, len(hits), feedback_text[:500],
+    )
 
     tenderamount = str(state.get("tender_amount") or "").strip()
     company = str(state.get("company") or "").lower()
