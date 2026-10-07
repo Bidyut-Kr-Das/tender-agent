@@ -18,7 +18,6 @@ class RelevanceState(TypedDict, total=False):
     # analysis branch
     brief: str
     itemcategory: str
-    query: str
     hits: list[dict]
     verdict: dict
     webhook: dict

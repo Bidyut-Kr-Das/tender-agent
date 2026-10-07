@@ -1,5 +1,13 @@
 # ponytail: company + category -> system prompt. unknown key falls back to DEFAULT.
-DEFAULT = "You judge whether a tender brief is a valid fit for the company. Use the prior feedback as evidence. Output valid true/false and one short reason."
+DEFAULT = "You judge whether a tender brief is a valid fit for the company. Output valid true/false and one short reason."
+
+# appended to every system prompt: human corrections outrank the static rules
+FEEDBACK_RULE = """Human Feedback (overrides the rules above)
+The user message may contain human feedback: corrections the company gave on earlier relevance verdicts.
+- Feedback tagged [SAME TENDER] is final for this tender. Follow its verdict even when the rules above disagree.
+- Feedback tagged [similar tender] overrides the rules above when its brief has clearly the same scope of work and products as this brief. Apply the same verdict and mention the feedback in "reason".
+- Ignore feedback whose brief differs in scope, product, or supply vs. service nature.
+- With no relevant feedback, decide by the rules above."""
 
 VALVE = """You are a Tender Evaluation Expert.
 

@@ -83,6 +83,8 @@ class Settings(BaseSettings):
 
     # relevance feedback vector collection (per-agent, not per-message)
     relevance_collection: str = "relevance"
+    # cosine floor for similar-tender feedback; same-tender feedback ignores it. tune from search logs
+    relevance_min_score: float = 0.5
 
     # reranker (cross-encoder) — ponytail: env-driven, no hardcode in nodes
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"

@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from database.connection import get_session_context
 from database.models import AIRelevance
 from intelligence.llm import get_llm
-from relevance.prompts import DEFAULT, DEFAULT_CATEGORY, PROMPTS
+from relevance.nodes.feedback import brief_of
+from relevance.prompts import DEFAULT, DEFAULT_CATEGORY, FEEDBACK_RULE, PROMPTS
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +17,21 @@ class RelevanceVerdict(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     valid: bool = Field(description="whether the brief is a valid tender fit for the company")
-    reason: str = Field(description="why the brief is or is not valid, grounded in the feedback chunks")
+    reason: str = Field(description="why the brief is or is not valid; name the human feedback when it decided the verdict")
+
+
+def _format_hit(h: dict) -> str:
+    payload = h.get("payload") or {}
+    tag = "[SAME TENDER]" if h.get("same_tender") else f"[similar tender, score {h.get('score', 0):.2f}]"
+    if payload.get("brief"):  # new-format point: brief and human words stored apart
+        return f"{tag}\nbrief: {payload['brief']}\nhuman feedback: {payload.get('feedback') or ''}"
+    return f"{tag}\n{h.get('text') or ''}"  # old point: raw k: v chunk
 
 
 def analyze(state: dict[str, Any]) -> dict[str, Any]:
     ref = (state.get("reference_no") or "").strip()
     extra = state.get("extra") or {}
-    brief = (extra.get("tenderbrief") or extra.get("tenderBrief") or "").strip()
+    brief = brief_of(extra)
     itemcategory = (extra.get("itemcategory") or extra.get("itemCategory") or "").strip()
     hits = state.get("hits") or []
 
@@ -31,9 +40,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
         logger.error("%s ref=%s", err, ref)
         return {"verdict": {}, "status": "failed", "error": err}
 
-    feedback_text = "\n\n".join(
-        f"[score {h.get('score', 0):.3f}]\n{h.get('text') or ''}" for h in hits if h.get("text")
-    ) or "(no feedback chunks found)"
+    feedback_text = "\n\n".join(_format_hit(h) for h in hits if h.get("text")) or "(no human feedback found)"
     logger.info(
         "analyze ref=%s feedback_hits=%s feedback_text=%r",
         ref, len(hits), feedback_text[:500],
@@ -47,6 +54,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
     if not system_prompt:
         logger.warning("no prompt for key=%s, falling back to default", prompt_key)
         system_prompt = DEFAULT
+    system_prompt = f"{system_prompt}\n\n{FEEDBACK_RULE}"
 
     try:
         llm = get_llm()
@@ -54,7 +62,7 @@ def analyze(state: dict[str, Any]) -> dict[str, Any]:
         result = structured.invoke(
             [
                 ("system", system_prompt),
-                ("human", f"item category: {itemcategory or 'unspecified'}\ntender amount: {tenderamount or 'unspecified'}\nbrief: {brief}\n\nprior feedback:\n{feedback_text}"),
+                ("human", f"item category: {itemcategory or 'unspecified'}\ntender amount: {tenderamount or 'unspecified'}\nbrief: {brief}\n\nhuman feedback:\n{feedback_text}"),
             ]
         )
         if not result:
