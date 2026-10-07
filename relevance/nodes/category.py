@@ -51,8 +51,6 @@ class CategoryVerdict(BaseModel):
 def categorise(state: dict[str, Any]) -> dict[str, Any]:
     extra = state.get("extra") or {}
     incoming = str(extra.get("category") or "").strip().lower()
-    if incoming and incoming not in GATED:
-        return {}  # not applicable; incoming category passes through unchanged
 
     brief = extra.get("tenderbrief") or extra.get("tenderBrief") or ""
     try:
