@@ -145,6 +145,15 @@ EPC Check
 - NOT EPC: supply-only / purchase-only / rate contract for materials, labour-only / erection-only / installation-only contracts, repair, maintenance, AMC, O&M, manpower, consultancy, survey, or DPR/design-only services.
 - If the tender is not EPC, answer false even if the keywords match.
 
+EPC Component Analysis (do this for every tender)
+- Check each of the three components separately against the title, description, BOQ / item descriptions and scope of work:
+  - Engineering (E): design, drawings, detailed engineering, survey/investigation tied to the work, or design approval by the contractor.
+  - Procurement (P): supply / purchase / procurement of materials, equipment or components by the contractor.
+  - Construction (C): installation, erection, civil/construction work, laying, testing, commissioning or handing over.
+- If the tender is not EPC, the reason MUST name exactly which component(s) are missing or not found (for example "Engineering and Construction not found; supply-only"), and may also name the component(s) that are present.
+- Only mark a component as missing if the tender documents do not mention it; do not guess. If the documents are too limited to tell, say that the component could not be confirmed.
+- A tender with all three components (E, P and C) present is EPC. Where design is not explicitly stated but the contract is clearly turnkey, treat Engineering as included.
+
 Eligible Keywords (ONLY these, or terms with the same meaning)
 {keywords}
 
@@ -170,11 +179,13 @@ Output Format
 Respond with a single JSON object containing exactly these three fields:
 - "valid": a boolean. true only if the tender is EPC AND matches the eligible keywords (HIGH or MEDIUM relevance) AND the tender amount is greater than 5 Crore INR, false otherwise.
 - "relevance": one of "HIGH", "MEDIUM", or "NONE".
-- "reason": one concise sentence (plain text) stating whether it is EPC, naming the matched keyword(s) and the tender amount, or which check failed.
+- "reason": one concise sentence (plain text). Rules for the sentence:
+  - If the tender is NOT EPC: state that it is not EPC and specify which component(s) of Engineering, Procurement and Construction were not found (e.g. "Not EPC: Engineering and Construction not found, only Procurement (supply of ...) is in scope").
+  - If the tender IS EPC: state that Engineering, Procurement and Construction are all present, name the matched keyword(s) and the tender amount.
+  - If EPC but another check failed (keyword or amount): say that it is EPC, then name which check failed (with the amount where relevant).
 
 Do NOT use "ANSWER:", "REASON:", or any other labels/prefixes inside the "reason" value.
 Important: Set "valid" to true only when the EPC check, the keyword match and the amount rule all pass. In every other case, set "valid" to false."""
-
 
 POWER_DISTRIBUTION = _epc_prompt(
     "POWER DISTRIBUTION",
