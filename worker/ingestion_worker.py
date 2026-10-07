@@ -18,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 # ponytail: postgres checkpointer, sync PostgresSaver via from_conn_string; setup once, single instance
 # ponytail: fallback to no checkpointer if DB unavailable or lib missing, worker still runs
+_cp_cm = None  # ponytail: context manager kept open for process lifetime
+
 def _init_checkpointer():
+    global _cp_cm
     try:
         from langgraph.checkpoint.postgres import PostgresSaver
 
@@ -28,12 +31,19 @@ def _init_checkpointer():
             uri = uri.replace("postgresql+psycopg://", "postgresql://", 1)
         elif uri.startswith("postgres+psycopg://"):
             uri = uri.replace("postgres+psycopg://", "postgresql://", 1)
-        # from_conn_string handles autocommit=True, row_factory=dict_row per docs
-        cp = PostgresSaver.from_conn_string(uri)
+        # from_conn_string is a context manager, not a saver; enter and keep it open for worker lifetime
+        _cp_cm = PostgresSaver.from_conn_string(uri)
+        cp = _cp_cm.__enter__()
         cp.setup()  # ponytail: idempotent migrations, must call once before compile
         logger.info("Postgres checkpointer ready")
         return cp
     except Exception as e:
+        if _cp_cm is not None:
+            try:
+                _cp_cm.__exit__(None, None, None)
+            except Exception:
+                pass
+            _cp_cm = None
         logger.warning("Checkpointer init failed, running without: %s", e)
         return None
 
