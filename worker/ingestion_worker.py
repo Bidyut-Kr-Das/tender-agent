@@ -1,3 +1,4 @@
+import faulthandler
 import json
 import logging
 
@@ -13,6 +14,10 @@ INGESTION_QUEUE = "agent:ingestion"
 INTELLIGENCE_QUEUE = "agent:intelligence"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+
+# ponytail: dump native fatal-signal traceback (segfault/abort in docling/torch) to stderr.
+# Cannot catch OOM SIGKILL; if this prints nothing, the kernel killed the process.
+faulthandler.enable()
 
 logger = logging.getLogger(__name__)
 

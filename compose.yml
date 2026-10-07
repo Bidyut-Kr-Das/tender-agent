@@ -20,7 +20,7 @@ services:
       resources:
         limits:
           cpus: "3.0"
-          memory: 2g
+          memory: 6g
     # ponytail: no depends_on — postgres/qdrant/rabbitmq external at 192.168.1.190, add services when self-hosted
 
   intelligence-agent:
