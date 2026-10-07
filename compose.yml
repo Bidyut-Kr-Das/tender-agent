@@ -49,6 +49,20 @@ services:
       - infra
     # ponytail: same image as ingestion-agent, separate process; split images when deps diverge
 
+  api:
+    image: "ghcr.io/laser-power-infra/tender-agent"
+    command: python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    volumes:
+      # ponytail: search/item graphs load the CrossEncoder reranker, so it shares the weights volume
+      - model-cache:/models
+    networks:
+      - infra
+    ports:
+      - "5000:8000"
+
 volumes:
   model-cache:
 
