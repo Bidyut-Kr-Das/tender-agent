@@ -32,6 +32,10 @@ def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
 
     # stable id per ref+company+content, dedupes redelivered messages
     point_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"feedback:{ref}:{state.get('company')}:{chunk}")
+    logger.info(
+        "embed_feedback ref=%s company=%s extra_keys=%s chunk=%r",
+        ref, state.get("company"), list(extra.keys()), chunk[:500],
+    )
 
     try:
         coll = ensure_collection(name=settings.relevance_collection)

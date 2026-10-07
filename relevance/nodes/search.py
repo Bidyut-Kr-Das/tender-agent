@@ -26,6 +26,11 @@ def search(state: dict[str, Any]) -> dict[str, Any]:
 
     try:
         coll = ensure_collection(name=settings.relevance_collection)
+        try:
+            total = qdrant.count(collection_name=coll, exact=True).count
+            logger.info("relevance collection=%s total_points=%s", coll, total)
+        except Exception as ce:
+            logger.warning("relevance count failed collection=%s error=%s", coll, ce)
         res = qdrant.query_points(
             collection_name=coll,
             query=dense,
