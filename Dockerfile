@@ -34,6 +34,9 @@ ENV HF_HOME=/models/hf \
 # ponytail: CPU inference with two workers on one host — unpinned torch grabs every core and thrashes
 ENV OMP_NUM_THREADS=4
 
+# ponytail: cap glibc malloc arenas; default 8x cores fragments and defeats malloc_trim on free
+ENV MALLOC_ARENA_MAX=2
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \

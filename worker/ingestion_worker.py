@@ -1,4 +1,5 @@
 import faulthandler
+import gc
 import json
 import logging
 
@@ -20,6 +21,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 faulthandler.enable()
 
 logger = logging.getLogger(__name__)
+
+
+def _rss_mb() -> float:
+    # ponytail: /proc/self/status VmRSS, no psutil dep. -1 when unreadable (non-linux).
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024
+    except Exception:
+        pass
+    return -1.0
+
+
+def _reclaim_memory():
+    # ponytail: drop cyclic garbage, then hand glibc arenas back to the OS. Does not shrink
+    # torch/onnx/pdfium internal caches — Step 2 shrinks the per-doc peak for those.
+    gc.collect()
+    try:
+        import ctypes
+
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
 
 # ponytail: postgres checkpointer, sync PostgresSaver via from_conn_string; setup once, single instance
 # ponytail: fallback to no checkpointer if DB unavailable or lib missing, worker still runs
@@ -118,16 +144,20 @@ def handle_message(ch, method, properties, body):
             job = IngestionJob.model_validate(payload)
             outcome.ids.update(job_id=job.job_id, reference_no=job.reference_no, tender_type=job.tender_type)
             logger.info("Validated job job_id=%s reference_no=%s files=%s", job.job_id, job.reference_no, len(job.files))
+            logger.info("RSS job start job_id=%s rss_mb=%.1f", job.job_id, _rss_mb())
             files = []
             outcome.result = {"files": files}  # partial result if a later file raises
             for state in job.to_file_states():  # ponytail: sequential per-file, parallel fan-out if throughput matters
+                result = None  # drop prior file's full state before the next invoke so it can be reclaimed
+                _reclaim_memory()
                 logger.info("Invoking graph job_id=%s payload=%r", job.job_id, state)
                 # ponytail: thread_id = job_id:document_id or external id for resumable checkpoints per doc
                 # ponytail: single thread_id per file, avoids cross-file checkpoint collision
                 tid = f"{job.job_id}:{state.get('external_document_id') or state.get('file_url')}"
                 config = {"configurable": {"thread_id": tid}}
+                logger.info("RSS before invoke file=%s rss_mb=%.1f", state.get("file_url"), _rss_mb())
                 result = _graph.invoke(state, config=config) if _checkpointer else _graph.invoke(state)
-                logger.info("Graph result job_id=%s status=%s file_path=%s error=%s", job.job_id, result.get("status"), result.get("file_path"), result.get("error"))
+                logger.info("Graph result job_id=%s status=%s file_path=%s error=%s rss_mb=%.1f", job.job_id, result.get("status"), result.get("file_path"), result.get("error"), _rss_mb())
                 files.append({
                     "document_id": result.get("document_id"),
                     "external_document_id": state.get("external_document_id"),
@@ -140,10 +170,15 @@ def handle_message(ch, method, properties, body):
                 if result.get("status") == "failed":
                     logger.error("Job %s failed file=%s error=%s", job.job_id, state.get("file_url"), result.get("error"))
                     outcome.fail(f"{state.get('file_url')}: {result.get('error') or 'ingestion failed'}", {"files": files})
+                    result = None
+                    _reclaim_memory()
                     _safe_ack_nack(ch, method, ack=False)
                     return
-                logger.info("Job %s file done: %s -> %s", job.job_id, result.get("status"), result.get("file_path"))
+                logger.info("Job %s file done: %s -> %s rss_mb=%.1f", job.job_id, result.get("status"), result.get("file_path"), _rss_mb())
+            result = None
+            _reclaim_memory()
             outcome.succeed({"files": files})
+            logger.info("RSS job end job_id=%s rss_mb=%.1f", job.job_id, _rss_mb())
         _publish_intelligence(job.reference_no, job.tender_type, client_id)
         _safe_ack_nack(ch, method, ack=True)
     except ValidationError as e:
