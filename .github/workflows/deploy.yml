@@ -76,7 +76,7 @@ jobs:
           docker compose pull ingestion-agent intelligence-agent api
 
           # docker compose up -d --scale intelligence-agent=1 intelligence-agent
-          docker compose up -d --scale ingestion-agent=1 --scale intelligence-agent=1 --scale relevance-agent=6 --scale api=1 api
+          docker compose up -d --scale relevance-agent=6 ingestion-agent intelligence-agent relevance-agent api
 
           # Cleanup old ingestion-agent images
           $repo = "ghcr.io/laser-power-infra/tender-agent"
