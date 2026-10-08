@@ -11,13 +11,11 @@ def build_relevance_graph():
     from relevance.nodes.analyze import analyze
     from relevance.nodes.category import categorise
     from relevance.nodes.feedback import embed_feedback
-    from relevance.nodes.generate_query import generate_query
     from relevance.nodes.search import search
     # Replaced by worker-level dispatch (core/webhook_dispatch.py). Uncomment to roll back.
     # from relevance.nodes.webhook import send_webhook
 
     g = StateGraph(RelevanceState)
-    g.add_node("generate_query", generate_query)
     g.add_node("search", search)
     g.add_node("category", categorise)
     g.add_node("analysis", analyze)
@@ -26,9 +24,8 @@ def build_relevance_graph():
     g.add_conditional_edges(
         START,
         _route,
-        {"analysis": "generate_query", "feedback": "feedback"},
+        {"analysis": "search", "feedback": "feedback"},
     )
-    g.add_edge("generate_query", "search")
     g.add_edge("search", "category")
     g.add_edge("category", "analysis")
     # Rollback: restore these two edges and delete the direct edge below.

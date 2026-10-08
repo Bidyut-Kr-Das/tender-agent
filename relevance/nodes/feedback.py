@@ -12,6 +12,17 @@ from vector.qdrant import ensure_collection, qdrant
 
 logger = logging.getLogger(__name__)
 
+BRIEF_KEYS = ("tenderbrief", "tenderBrief")
+
+
+def brief_of(extra: dict[str, Any]) -> str:
+    return next((str(extra[k]).strip() for k in BRIEF_KEYS if extra.get(k)), "")
+
+
+def feedback_point_id(ref: str, company: str | None) -> str:
+    # one point per tender+company: newer feedback replaces older (history stays in the feedback table)
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"feedback:{ref}:{company}"))
+
 
 def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
     ref = state.get("reference_no") or ""
@@ -22,16 +33,18 @@ def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
         logger.error("%s ref=%s", err, ref)
         return {"status": "failed", "error": err, "chunk": ""}
 
-    # ponytail: dense only — feedback chunk is one short text, BM25 adds nothing
+    brief = brief_of(extra)
+    human = "\n".join(f"{k}: {v}" for k, v in extra.items() if k not in BRIEF_KEYS)
+
+    # embed the brief so analysis (which searches with its own brief) matches brief-to-brief
     try:
-        vec = get_dense().embed_documents([chunk])[0]
+        vec = get_dense().embed_documents([brief or chunk])[0]
     except Exception as e:
         err = f"embedding failed: {type(e).__name__}: {e}"
         logger.error(err, exc_info=True)
         return {"status": "failed", "error": err, "chunk": chunk}
 
-    # stable id per ref+company+content, dedupes redelivered messages
-    point_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"feedback:{ref}:{state.get('company')}:{chunk}")
+    point_id = feedback_point_id(ref, state.get("company"))
     logger.info(
         "embed_feedback ref=%s company=%s extra_keys=%s chunk=%r",
         ref, state.get("company"), list(extra.keys()), chunk[:500],
@@ -43,7 +56,7 @@ def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
             collection_name=coll,
             points=[
                 PointStruct(
-                    id=str(point_id),
+                    id=point_id,
                     vector={"dense": vec},
                     payload={
                         "reference_no": ref,
@@ -51,6 +64,8 @@ def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
                         "company": state.get("company"),
                         "payload_type": "feedback",
                         "text": chunk,
+                        "brief": brief,
+                        "feedback": human,
                     },
                 )
             ],
@@ -71,6 +86,6 @@ def embed_feedback(state: dict[str, Any]) -> dict[str, Any]:
         err = f"feedback db save failed: {type(e).__name__}: {e}"
         logger.error(err, exc_info=True)
         # ponytail: vector already pushed, row missing — nack so message retried, dedupe id makes it safe
-        return {"status": "failed", "error": err, "chunk": chunk, "vector_ids": [str(point_id)]}
+        return {"status": "failed", "error": err, "chunk": chunk, "vector_ids": [point_id]}
 
-    return {"chunk": chunk, "vector_ids": [str(point_id)], "status": "indexed", "error": None}
+    return {"chunk": chunk, "vector_ids": [point_id], "status": "indexed", "error": None}

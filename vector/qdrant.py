@@ -23,6 +23,7 @@ _MODEL_DIMS = {
 _PAYLOAD_INDEXES = [
     ("reference_no", PayloadSchemaType.KEYWORD),
     ("referenceNo", PayloadSchemaType.KEYWORD),
+    ("company", PayloadSchemaType.KEYWORD),
     ("document_tag", PayloadSchemaType.KEYWORD),
     ("documentTag", PayloadSchemaType.KEYWORD),
     ("document_type", PayloadSchemaType.KEYWORD),

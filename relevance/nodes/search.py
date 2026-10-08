@@ -1,24 +1,39 @@
 import logging
 from typing import Any
 
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+
 from core.config import settings
+from relevance.nodes.feedback import brief_of, feedback_point_id
 from vector.embeddings import get_dense
 from vector.qdrant import ensure_collection, qdrant
 
 logger = logging.getLogger(__name__)
 
 
-def search(state: dict[str, Any]) -> dict[str, Any]:
-    query = (state.get("query") or "").strip()
-    ref = (state.get("reference_no") or "").strip()
+def _hit(p, same_tender: bool) -> dict[str, Any]:
+    payload = getattr(p, "payload", {}) or {}
+    return {
+        "id": str(getattr(p, "id", "")),
+        "score": float(getattr(p, "score", 0) or 0),
+        "text": payload.get("text") or "",
+        "payload": payload,
+        "same_tender": same_tender,
+    }
 
-    if not query:
-        err = "query required (run generate_query first)"
+
+def search(state: dict[str, Any]) -> dict[str, Any]:
+    ref = (state.get("reference_no") or "").strip()
+    company = state.get("company")
+    brief = brief_of(state.get("extra") or {})
+
+    if not brief:
+        err = "tenderbrief missing in extra"
         logger.error("%s ref=%s", err, ref)
         return {"hits": [], "status": "failed", "error": err}
 
     try:
-        dense = get_dense().embed_query(query)
+        dense = get_dense().embed_query(brief)
     except Exception as e:
         err = f"dense embed failed: {type(e).__name__}: {e}"
         logger.error(err, exc_info=True)
@@ -26,38 +41,24 @@ def search(state: dict[str, Any]) -> dict[str, Any]:
 
     try:
         coll = ensure_collection(name=settings.relevance_collection)
-        try:
-            total = qdrant.count(collection_name=coll, exact=True).count
-            logger.info("relevance collection=%s total_points=%s", coll, total)
-        except Exception as ce:
-            logger.warning("relevance count failed collection=%s error=%s", coll, ce)
+        # feedback on this exact tender always comes first, whatever its similarity
+        own_id = feedback_point_id(ref, company)
+        hits = [_hit(p, True) for p in qdrant.retrieve(collection_name=coll, ids=[own_id], with_payload=True)]
         res = qdrant.query_points(
             collection_name=coll,
             query=dense,
             using="dense",
-            limit=3,
+            query_filter=Filter(must=[FieldCondition(key="company", match=MatchValue(value=company))]),
+            limit=5,
+            score_threshold=settings.relevance_min_score,
             with_payload=True,
         )
-        points = res.points if hasattr(res, "points") else []
-        hits = []
-        for p in points:
-            payload = getattr(p, "payload", {}) or {}
-            hits.append(
-                {
-                    "id": str(getattr(p, "id", "")),
-                    "score": float(getattr(p, "score", 0) or 0),
-                    "text": payload.get("text") or "",
-                    "payload": payload,
-                }
-            )
-        logger.info(
-            "relevance search ref=%s collection=%s query=%r hits=%s",
-            ref, coll, query[:120], len(hits),
-        )
+        hits += [_hit(p, False) for p in (res.points if hasattr(res, "points") else []) if str(p.id) != own_id]
+        logger.info("relevance search ref=%s company=%s collection=%s hits=%s", ref, company, coll, len(hits))
         for i, h in enumerate(hits):
             logger.info(
-                "relevance hit #%s ref=%s score=%.4f id=%s text=%r",
-                i, ref, h.get("score", 0.0), h.get("id"), (h.get("text") or "")[:300],
+                "relevance hit #%s ref=%s same_tender=%s score=%.4f id=%s text=%r",
+                i, ref, h["same_tender"], h["score"], h["id"], h["text"][:300],
             )
         if not hits:
             logger.warning("relevance search returned 0 feedback chunks ref=%s collection=%s", ref, coll)
