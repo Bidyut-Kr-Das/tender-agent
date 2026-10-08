@@ -20,9 +20,18 @@ class RelevanceVerdict(BaseModel):
     reason: str = Field(description="why the brief is or is not valid; name the human feedback when it decided the verdict")
 
 
+OVERRIDE_SCORE = 0.82
+
+
 def _format_hit(h: dict) -> str:
     payload = h.get("payload") or {}
-    tag = "[SAME TENDER]" if h.get("same_tender") else f"[similar tender, score {h.get('score', 0):.2f}]"
+    score = float(h.get("score") or 0)
+    if h.get("same_tender"):
+        tag = "[SAME TENDER]"
+    elif score >= OVERRIDE_SCORE:
+        tag = f"[similar tender, SCOPE MATCH, score {score:.2f}]"
+    else:
+        tag = f"[similar tender, score {score:.2f}]"
     if payload.get("brief"):  # new-format point: brief and human words stored apart
         return f"{tag}\nbrief: {payload['brief']}\nhuman feedback: {payload.get('feedback') or ''}"
     return f"{tag}\n{h.get('text') or ''}"  # old point: raw k: v chunk
