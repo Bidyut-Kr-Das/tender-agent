@@ -143,6 +143,125 @@ Important: Set "valid" to true only when the tender clearly involves the supply/
 
 """
 
+# keyword lists: shared by the EPC prompts below and the category picker (relevance/nodes/category.py)
+DISTRIBUTION_KEYWORDS = """- Power
+- Substation / PSS / GIS / AIS
+- Power / Electrical Infrastructure
+- High Voltage Distribution
+- Overhead Line / Stringing / Conductor Stringing
+- Underground Cabling / UG Cable
+- 11 KV / 33 KV Line
+- RDSS (Revamped Distribution Sector Scheme)
+- Revamped
+- Loss Reduction
+- Modernization
+- Off Grid / On Grid Distribution Modernization
+- Bay Extension
+- HT / LT Line Distribution
+- Augmentation / Reconductoring
+- LV Distribution
+- Rural Electrification
+- Covered Conductor / MVCC
+- RMU / SCADA
+- Compact Substations
+- HTLS Conductors
+- SITC (Supply, Installation, Testing & Commissioning)"""
+
+TRANSMISSION_KEYWORDS = """- EPC / turnkey transmission line
+- EPC / turnkey substation
+- 132 kV / 220 kV transmission line EPC
+- 132/33 kV substation turnkey
+- 132 kV / 220 kV AIS / GIS substation
+- 220/132 kV substation EPC
+- Design, supply, erection and commissioning of 132 kV transmission line
+- Design, supply, erection and commissioning of 220 kV transmission line
+- 132 kV GIS substation EPC
+- 220 kV AIS substation turnkey
+- Augmentation of 132 kV / 220 kV substation
+- 66 kV / 132 kV / 220 kV / 400 kV
+- HTLS Transmission Line (66 kV to 400 kV)
+- Reconductoring / Re-Strengthening / Revival of Transmission Line
+- SITC of Transmission Line Towers / Monopoles"""
+
+SOLAR_KEYWORDS = """- EPC Solar Power
+- Turnkey Solar Projects
+- Grid Connected Solar
+- Ground Mounted Solar
+- Rooftop Solar
+- Utility Scale Solar
+- Solar Energy
+- Design-supply-install solar
+- Solar PV
+- Solar Power System
+- Solar Energy Infrastructure
+- PV Module EPC
+- Solar Inverter
+- Floating Solar
+- Renewable energy solar
+- Off-grid solar project
+- Hybrid solar project
+- Distributed solar power
+- Solar microgrid / minigrid
+- Residential / commercial solar project
+- Solar Water Pumping System
+- Battery Energy Storage System (BESS)
+- Solar Module"""
+
+WATER_KEYWORDS = """- EPC water supply
+- Turnkey Water Supply
+- Water Distribution System / Network
+- Drinking Water
+- Water Pipeline
+- Rural / Urban Piped Water Supply
+- Supply Infrastructure
+- Integrated water supply
+- Water Treatment Plant (WTP)
+- Sewage Treatment Plant (STP)
+- Water Supply Network
+- Intake Well
+- Overhead Reservoir (OHR)
+- Underground Reservoir (UGR)
+- Distribution Network Water Supply
+- Clear Water Reservoir (CWR)
+- Pipeline Laying
+- DI Pipeline
+- Augmentation of Water Supply
+- Underground Pipeline Irrigation System
+- Minor Canal
+- Construction of Distribution System
+- Rising Main
+- DI / MS / HDPE Pipeline
+- Elevated Service Reservoir (ESR)
+- Pump House
+- Gravity Pipe Line System
+- Command Area Development
+- Raw Water / Clear Water
+- Retrofitting of Pipes Water Supply
+- Survey, Investigation, Design & Construction of Piped Water Supply
+- Schemes: RWSS / PH (Public Health) / WATCO / Irrigation / Jal Jeevan Mission (JJM) / AMRUT 2.0"""
+
+RAILWAY_KEYWORDS = """- EPC Railway Electrification
+- Turnkey Railway Electrification
+- Railway Electrification (RE) Work
+- Overhead Equipment / OHE
+- 25 kV OHE / 25 kV AC Traction
+- Overhead Electrification / OHE System
+- Traction Substation / TSS / Traction Power Supply
+- Feeding Post / Sectioning Post / Sub-sectioning Post
+- Traction SCADA / SCADA System
+- Railway Track / Track Doubling / Gauge Conversion
+- New Railway Line / Railway Line Construction
+- Railway Bridge / ROB / RUB / Flyover
+- Railway Siding / Private Siding / Industrial Siding
+- Metro Rail / Metro / MRTS / RRTS
+- Signalling and Telecommunication (S&T)
+- Railway Station / Coaching Depot / Railway Building
+- Design, Supply, Erection, Testing and Commissioning of Railway Electrification
+- OPGW (Optical Ground Wire) on Railway
+- Railway Electrification of Section
+- Electric Loco / Traction Distribution
+- Railway EPC / Turnkey Railway Project"""
+
 def _epc_prompt(sector: str, keywords: str, rules: str) -> str:
     """Shared EPC + keyword + >5 Cr amount prompt. sector: label, keywords: "- x" lines, rules: extra numbered rules."""
     return f"""You are a Tender Evaluation Expert.
@@ -199,242 +318,46 @@ Important: Set "valid" to true only when the EPC check, the keyword match and th
 
 POWER_DISTRIBUTION = _epc_prompt(
     "POWER DISTRIBUTION",
-    """- Power
-- Substation / PSS / GIS / AIS
-- Power / Electrical Infrastructure
-- High Voltage Distribution
-- Overhead Line / Stringing / Conductor Stringing
-- Underground Cabling / UG Cable
-- 11 KV / 33 KV Line
-- RDSS (Revamped Distribution Sector Scheme)
-- Revamped
-- Loss Reduction
-- Modernization
-- Off Grid / On Grid Distribution Modernization
-- Bay Extension
-- HT / LT Line Distribution
-- Augmentation / Reconductoring
-- LV Distribution
-- Rural Electrification
-- Covered Conductor / MVCC
-- RMU / SCADA
-- Compact Substations
-- HTLS Conductors
-- SITC (Supply, Installation, Testing & Commissioning)""",
+    DISTRIBUTION_KEYWORDS,
     """- Generic words such as "Power", "Revamped" or "Modernization" count ONLY when used in an electrical power distribution context (e.g. "power distribution", "modernization of distribution network"). "Power" in unrelated contexts (power tools, power steering, manpower, power backup for a building, power of attorney) does NOT count.
 - Voltage rule: 33 kV and below is distribution, above 33 kV is transmission. The work must be at 33 kV or below (e.g. 33 kV, 22 kV, 11 kV, LT). Lines or substations whose higher voltage is above 33 kV (e.g. 66 kV, 132 kV, 132/33 kV, 220 kV) are transmission and do NOT count.""",
 )
 
 POWER_TRANSMISSION = _epc_prompt(
     "POWER TRANSMISSION",
-    """- EPC / turnkey transmission line
-- EPC / turnkey substation
-- 132 kV / 220 kV transmission line EPC
-- 132/33 kV substation turnkey
-- 132 kV / 220 kV AIS / GIS substation
-- 220/132 kV substation EPC
-- Design, supply, erection and commissioning of 132 kV transmission line
-- Design, supply, erection and commissioning of 220 kV transmission line
-- 132 kV GIS substation EPC
-- 220 kV AIS substation turnkey
-- Augmentation of 132 kV / 220 kV substation
-- 66 kV / 132 kV / 220 kV / 400 kV
-- HTLS Transmission Line (66 kV to 400 kV)
-- Reconductoring / Re-Strengthening / Revival of Transmission Line
-- SITC of Transmission Line Towers / Monopoles""",
+    TRANSMISSION_KEYWORDS,
     """- Voltage rule: above 33 kV is transmission, 33 kV and below is distribution. The work must be at a voltage ABOVE 33 kV (e.g. 66 kV, 110 kV, 132 kV, 220 kV, 400 kV). A substation counts when its higher voltage is above 33 kV (e.g. 132/33 kV, 220/132 kV). Lines or substations only at 33 kV or below (33 kV, 22 kV, 11 kV, LT) are distribution and do NOT count.""",
 )
 
 SOLAR = _epc_prompt(
     "SOLAR POWER",
-    """- EPC Solar Power
-- Turnkey Solar Projects
-- Grid Connected Solar
-- Ground Mounted Solar
-- Rooftop Solar
-- Utility Scale Solar
-- Solar Energy
-- Design-supply-install solar
-- Solar PV
-- Solar Power System
-- Solar Energy Infrastructure
-- PV Module EPC
-- Solar Inverter
-- Floating Solar
-- Renewable energy solar
-- Off-grid solar project
-- Hybrid solar project
-- Distributed solar power
-- Solar microgrid / minigrid
-- Residential / commercial solar project
-- Solar Water Pumping System
-- Battery Energy Storage System (BESS)
-- Solar Module""",
+    SOLAR_KEYWORDS,
     """- The solar scope must be electrical power generation or storage (PV plants, rooftop/ground/floating systems, solar pumping, microgrids, BESS). Small standalone solar items such as solar street lights, solar lanterns, solar water heaters or solar cables alone do NOT count.""",
 )
 
 WATER_DISTRIBUTION = _epc_prompt(
     "WATER DISTRIBUTION",
-    """- EPC water supply
-- Turnkey Water Supply
-- Water Distribution System / Network
-- Drinking Water
-- Water Pipeline
-- Rural / Urban Piped Water Supply
-- Supply Infrastructure
-- Integrated water supply
-- Water Treatment Plant (WTP)
-- Sewage Treatment Plant (STP)
-- Water Supply Network
-- Intake Well
-- Overhead Reservoir (OHR)
-- Underground Reservoir (UGR)
-- Distribution Network Water Supply
-- Clear Water Reservoir (CWR)
-- Pipeline Laying
-- DI Pipeline
-- Augmentation of Water Supply
-- Underground Pipeline Irrigation System
-- Minor Canal
-- Construction of Distribution System
-- Rising Main
-- DI / MS / HDPE Pipeline
-- Elevated Service Reservoir (ESR)
-- Pump House
-- Gravity Pipe Line System
-- Command Area Development
-- Raw Water / Clear Water
-- Retrofitting of Pipes Water Supply
-- Survey, Investigation, Design & Construction of Piped Water Supply
-- Schemes: RWSS / PH (Public Health) / WATCO / Irrigation / Jal Jeevan Mission (JJM) / AMRUT 2.0""",
+    WATER_KEYWORDS,
     """- Generic words such as "Supply Infrastructure", "Pipeline Laying", "Pump House" or "Construction of Distribution System" count ONLY in a water supply, sewerage or irrigation context. Gas, oil, power or other non-water pipelines and distribution systems do NOT count.
 - Valve rule: if the tender mentions valves AND involves the SUPPLY of valves (supply, procurement, purchase, delivery of valves), set valid to false and relevance to NONE, because that is a valve-supply tender and not a water distribution EPC tender; this company does not participate in valve supply.""",
 )
 
 RAILWAYS = _epc_prompt(
     "RAILWAYS",
-    """Railway (core)
-- EPC Railway Electrification
-- Turnkey Railway Electrification
-- Railway Electrification (RE) Work
-- Overhead Equipment / OHE
-- 25 kV OHE / 25 kV AC Traction
-- Overhead Electrification / OHE System
-- Traction Substation / TSS / Traction Power Supply
-- Feeding Post / Sectioning Post / Sub-sectioning Post
-- Traction SCADA / SCADA System
-- Railway Track / Track Doubling / Gauge Conversion
-- New Railway Line / Railway Line Construction
-- Railway Bridge / ROB / RUB / Flyover
-- Railway Siding / Private Siding / Industrial Siding
-- Metro Rail / Metro / MRTS / RRTS
-- Signalling and Telecommunication (S&T)
-- Railway Station / Coaching Depot / Railway Building
-- Design, Supply, Erection, Testing and Commissioning of Railway Electrification
-- OPGW (Optical Ground Wire) on Railway
-- Railway Electrification of Section
-- Electric Loco / Traction Distribution
-- Railway EPC / Turnkey Railway Project
+    f"""Railway (core)
+{RAILWAY_KEYWORDS}
 
 Power Distribution
-- Power
-- Substation / PSS / GIS / AIS
-- Power / Electrical Infrastructure
-- High Voltage Distribution
-- Overhead Line / Stringing / Conductor Stringing
-- Underground Cabling / UG Cable
-- 11 KV / 33 KV Line
-- RDSS (Revamped Distribution Sector Scheme)
-- Revamped
-- Loss Reduction
-- Modernization
-- Off Grid / On Grid Distribution Modernization
-- Bay Extension
-- HT / LT Line Distribution
-- Augmentation / Reconductoring
-- LV Distribution
-- Rural Electrification
-- Covered Conductor / MVCC
-- RMU / SCADA
-- Compact Substations
-- HTLS Conductors
-- SITC (Supply, Installation, Testing & Commissioning)
+{DISTRIBUTION_KEYWORDS}
 
 Power Transmission
-- EPC / turnkey transmission line
-- EPC / turnkey substation
-- 132 kV / 220 kV transmission line EPC
-- 132/33 kV substation turnkey
-- 132 kV / 220 kV AIS / GIS substation
-- 220/132 kV substation EPC
-- Design, supply, erection and commissioning of 132 kV transmission line
-- Design, supply, erection and commissioning of 220 kV transmission line
-- 132 kV GIS substation EPC
-- 220 kV AIS substation turnkey
-- Augmentation of 132 kV / 220 kV substation
-- 66 kV / 132 kV / 220 kV / 400 kV
-- HTLS Transmission Line (66 kV to 400 kV)
-- Reconductoring / Re-Strengthening / Revival of Transmission Line
-- SITC of Transmission Line Towers / Monopoles
+{TRANSMISSION_KEYWORDS}
 
 Solar
-- EPC Solar Power
-- Turnkey Solar Projects
-- Grid Connected Solar
-- Ground Mounted Solar
-- Rooftop Solar
-- Utility Scale Solar
-- Solar Energy
-- Design-supply-install solar
-- Solar PV
-- Solar Power System
-- Solar Energy Infrastructure
-- PV Module EPC
-- Solar Inverter
-- Floating Solar
-- Renewable energy solar
-- Off-grid solar project
-- Hybrid solar project
-- Distributed solar power
-- Solar microgrid / minigrid
-- Residential / commercial solar project
-- Solar Water Pumping System
-- Battery Energy Storage System (BESS)
-- Solar Module
+{SOLAR_KEYWORDS}
 
 Water Distribution
-- EPC water supply
-- Turnkey Water Supply
-- Water Distribution System / Network
-- Drinking Water
-- Water Pipeline
-- Rural / Urban Piped Water Supply
-- Supply Infrastructure
-- Integrated water supply
-- Water Treatment Plant (WTP)
-- Sewage Treatment Plant (STP)
-- Water Supply Network
-- Intake Well
-- Overhead Reservoir (OHR)
-- Underground Reservoir (UGR)
-- Distribution Network Water Supply
-- Clear Water Reservoir (CWR)
-- Pipeline Laying
-- DI Pipeline
-- Augmentation of Water Supply
-- Underground Pipeline Irrigation System
-- Minor Canal
-- Construction of Distribution System
-- Rising Main
-- DI / MS / HDPE Pipeline
-- Elevated Service Reservoir (ESR)
-- Pump House
-- Gravity Pipe Line System
-- Command Area Development
-- Raw Water / Clear Water
-- Retrofitting of Pipes Water Supply
-- Survey, Investigation, Design & Construction of Piped Water Supply
-- Schemes: RWSS / PH (Public Health) / WATCO / Irrigation / Jal Jeevan Mission (JJM) / AMRUT 2.0""",
+{WATER_KEYWORDS}""",
     """- Generic words such as "Power", "Revamped", "Modernization", "Supply Infrastructure", "Pipeline Laying", "Pump House" or "Construction of Distribution System" count ONLY in the relevant electrical power, water supply, sewerage or irrigation context; the same words in unrelated contexts (power tools, power of attorney, gas/oil pipelines) do NOT count.
 - Voltage rule: for railway works, electrical work at ANY voltage counts (both distribution at 33 kV and below AND transmission above 33 kV are eligible). In a paired rating such as "132/33 kV" use the higher voltage only to classify, never to exclude.
 - Solar keyword counts only when the solar scope is electrical power generation or storage (PV plants, rooftop/ground/floating systems, solar pumping, microgrids, BESS); standalone solar street lights, solar lanterns, solar water heaters or solar cables alone do NOT count.
@@ -454,3 +377,26 @@ PROMPTS = {
 }
 
 DEFAULT_CATEGORY = {"gmd": "valve", "laser": "cable_conductor"}
+
+# EPC categories the category picker may choose from, with the keywords that define each
+EPC_CATEGORIES = {
+    "power_distribution": DISTRIBUTION_KEYWORDS,
+    "power_transmission": TRANSMISSION_KEYWORDS,
+    "solar": SOLAR_KEYWORDS,
+    "water_distribution": WATER_KEYWORDS,
+    "railways": RAILWAY_KEYWORDS,
+}
+
+# category picker: only asked for work tenders that no rule could place (relevance/nodes/category.py)
+CATEGORY_PICK = """You sort tender briefs into categories.
+
+This tender is execution work (EPC, SITC, turnkey, erection, laying or construction), so it belongs to one of the categories below and never to cable/conductor supply.
+
+Pick the ONE category whose keywords best match the scope of the brief.
+- Voltage rule: electrical lines and substations above 33 kV are power_transmission, 33 kV and below are power_distribution.
+- If the brief fits none of the categories well, still pick the closest one.
+- The user message may contain human category feedback on similar tenders. Treat it as examples of how this company sorts tenders and follow it when the brief has the same scope.
+
+Categories:
+
+{categories}"""

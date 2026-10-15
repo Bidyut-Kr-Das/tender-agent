@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     # brief-to-brief cosine for a near-duplicate tender (same project, other town ~0.93) whose feedback may decide.
     # cable supply-vs-laying / supply-vs-stringing pairs measured 0.77-0.79, so keep this above 0.8
     relevance_override_score: float = 0.9
+    # category feedback (POST /category-feedback). same score floors as relevance feedback
+    category_collection: str = "category_feedback"
 
     # reranker (cross-encoder) — ponytail: env-driven, no hardcode in nodes
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -118,6 +120,7 @@ class Settings(BaseSettings):
         "embedding_model",
         "qdrant_collection",
         "relevance_collection",
+        "category_collection",
         "rerank_model",
         "rerank_device",
         "chat_model",
