@@ -7,6 +7,10 @@ logger = logging.getLogger(__name__)
 # ponytail: the rules are keyword + voltage checks, so plain code. The LLM version returned null even for
 # "132/33 kv substation" and "distribution transformer". Add an LLM fallback only for briefs no rule can read.
 SUBSTATION = re.compile(r"sub[\s-]?stations?\b|\bs/s\b")
+# supply-only = a supply word and no work word. Only the cable prompt accepts supply-only; every EPC prompt rejects it.
+SUPPLY = re.compile(r"\bsuppl|\bprocure|\bpurchase|\bdeliver|rate contract")
+WORK = re.compile(r"erect|\bstring|install|\blay|commission|construct|turnkey|\bepc\b|\bsitc\b")
+CABLE = re.compile(r"\bcables?\b|\bconductors?\b|\bacsr\b|\baaac?\b|\bxlpe\b|\bmvcc\b")
 # "132/33 kv", "33kv", "11 kv": a paired rating counts as its higher voltage
 KV = re.compile(r"(\d+(?:\.\d+)?(?:\s*/\s*\d+(?:\.\d+)?)*)\s*kv\b")
 
@@ -20,6 +24,9 @@ def decide(brief: str) -> str | None:
     b = brief.lower()
     kv = max_kv(b)
     sub = bool(SUBSTATION.search(b))
+    # supply-only first: "supply of acsr conductor for 132 kv transmission line" is a cable tender, not transmission
+    if SUPPLY.search(b) and not WORK.search(b):
+        return "cables_conductors" if CABLE.search(b) else None
     # first match wins: transmission rules, then distribution rules
     if ("opgw" in b and "supply" not in b) or "transmission" in b or (sub and kv is not None and kv > 33):
         return "power_transmission"
@@ -46,14 +53,23 @@ if __name__ == "__main__":
         "operation and maintenance of substation - painting of earthing": "power_distribution",
         "220 kv gis sub-station augmentation": "power_transmission",
         "laying of opgw on existing line": "power_transmission",
-        "supply of opgw cable": None,
+        "supply of opgw cable": "cables_conductors",
         "transmission line 220 kv": "power_transmission",
         "conversion of overhead network into underground cable system": "power_distribution",
-        "supply and delivery of lt distribution kiosk": "power_distribution",
-        "supply of 1.1 kv xlpe armoured cable": None,
+        "supply and delivery of lt distribution kiosk": None,
+        "supply of 1.1 kv xlpe armoured cable": "cables_conductors",
+        "supply of acsr zebra conductor for 220 kv transmission line": "cables_conductors",
+        "procurement of 33 kv xlpe cable for 132/33 kv substation": "cables_conductors",
+        "rate contract for aaa conductor and ab cable": "cables_conductors",
+        "supply of 11 kv ug cable": "cables_conductors",
+        "supply and laying of 11 kv ug cable in distribution network": "power_distribution",
+        "supply, erection and stringing of acsr conductor on 132 kv transmission line": "power_transmission",
+        "sitc of 33 kv underground cable": "power_distribution",
+        "supply of 132 kv transmission tower parts": None,
         "supply of water pipes": None,
     }
     for brief, want in cases.items():
         assert decide(brief) == want, (brief, decide(brief), want)
-    assert categorise({"category": "cables_conductors", "extra": {"tenderbrief": "supply of acsr conductor"}}) == {}
+    assert categorise({"category": "power_transmission", "extra": {"tenderbrief": "supply of acsr conductor"}}) == {"category": "cables_conductors"}
+    assert categorise({"category": "solar", "extra": {"tenderbrief": "supply of water pipes"}}) == {}
     print("category rules ok")
