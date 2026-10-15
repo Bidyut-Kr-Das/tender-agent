@@ -420,7 +420,7 @@ uv run python scripts/view_graph.py
 Single image, two services (`compose.yml`):
 
 ```bash
-docker compose pull ingestion-agent intelligence-agent
+docker compose pull ingestion-agent intelligence-agent performance-certificate-agent
 docker compose up -d
 ```
 
