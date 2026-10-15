@@ -186,3 +186,34 @@ class IntelligenceJob(BaseModel):
     @classmethod
     def check_tender_type(cls, v: str | None) -> str:
         return normalize_tender_type(v)
+
+
+class PerformanceCertFile(IngestionFile):
+    performance_certificate_id: str | int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("performance_certificate_id", "performanceCertificateId", "certificate_id", "certificateId"),
+    )
+
+
+class PerformanceCertJob(BaseModel):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    job_id: str = Field(validation_alias=AliasChoices("job_id", "jobId", "jobID", "id"))
+    # routing key for the completion webhook; snake_case canonical, camelCase still accepted
+    client_id: str | None = Field(default=None, validation_alias=AliasChoices("client_id", "clientId"))
+    files: list[PerformanceCertFile]
+
+    @field_validator("job_id")
+    @classmethod
+    def check_job_id(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("jobId must be non-empty")
+        return v
+
+    @field_validator("files")
+    @classmethod
+    def check_files(cls, v: list[PerformanceCertFile]) -> list[PerformanceCertFile]:
+        if not v:
+            raise ValueError("files must be non-empty")
+        return v

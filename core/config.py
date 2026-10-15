@@ -103,6 +103,11 @@ class Settings(BaseSettings):
     laser_url: str | None = None
     gmd_url: str | None = None
 
+    # typesafe performance certificate API
+    typesafe_api_key: str | None = None
+    typesafe_model: str = "jev-latest"
+    performance_cert_max_pdfs: int = 30
+
     # ponytail: one strip validator for every optional string, was the same four lines x4
     @field_validator(
         "google_oauth_client_id",
@@ -119,6 +124,8 @@ class Settings(BaseSettings):
         "ted_webhook_url",
         "laser_url",
         "gmd_url",
+        "typesafe_api_key",
+        "typesafe_model",
         mode="before",
     )
     @classmethod

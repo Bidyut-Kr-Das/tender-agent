@@ -49,6 +49,19 @@ services:
       - infra
     # ponytail: same image as ingestion-agent, separate process; split images when deps diverge
 
+  performance-certificate-agent:
+    image: "ghcr.io/laser-power-infra/tender-agent"
+    command: python -m worker.performance_certificate_worker
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    volumes:
+      # shared with ingestion-agent: same image, same weights, one download
+      - model-cache:/models
+    networks:
+      - infra
+    # ponytail: same image as ingestion-agent, separate process; split images when deps diverge
+
   api:
     image: "ghcr.io/laser-power-infra/tender-agent"
     command: python -m uvicorn api.main:app --host 0.0.0.0 --port 8000

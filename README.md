@@ -44,6 +44,7 @@ Two independent RabbitMQ workers, one shared codebase and Docker image.
 |---|---|---|---|
 | **Ingestion** | `agent:ingestion` | Download → parse → chunk → embed → index → persist | `worker/ingestion_worker.py` |
 | **Intelligence** | `agent:intelligence` | Plan searches → hybrid retrieve → rerank → structured answer | `worker/intelligence_worker.py` |
+| **Performance Certificate** | `agent:performance_cert` | Compare submitted performance certificates against the tender requirements | `worker/performance_certificate_worker.py` |
 
 Ingestion builds the knowledge base offline. Intelligence answers questions against it, filtered by tender `reference_no`.
 
@@ -320,6 +321,25 @@ Validation lives in `worker/job.py`. Field aliases accept snake_case and camelCa
 { "referenceNo": "T123" }
 ```
 
+**`agent:performance_cert`**
+
+```json
+{
+  "jobId": "9f4c...",
+  "client_id": "whk_abc123",
+  "files": [
+    {
+      "performanceCertificateId": "PC-102",
+      "fileName": "completion-certificate.pdf",
+      "fileUrl": "https://drive.google.com/file/d/<id>/view",
+      "fileTag": "certificate"
+    }
+  ]
+}
+```
+
+`client_id` is the webhook routing key (the id returned when registering the webhook). `fileUrl` must start with `http://` or `https://`. `files` must be non-empty.
+
 Invalid payloads are nacked with `requeue=False` and logged with the full Pydantic error list.
 
 ---
@@ -378,6 +398,7 @@ uv run alembic upgrade head
 ```bash
 uv run python -m worker.ingestion_worker      # consumes agent:ingestion
 uv run python -m worker.intelligence_worker   # consumes agent:intelligence
+uv run python -m worker.performance_certificate_worker  # consumes agent:performance_cert
 ```
 
 Both declare their queue durably on startup, so order does not matter.

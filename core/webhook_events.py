@@ -13,4 +13,6 @@ WEBHOOK_EVENTS: dict[str, str] = {
     "relevance.analyzed_failed": "Relevance analysis failed",
     "relevance.feedback_success": "Feedback recorded",
     "relevance.feedback_failed": "Feedback could not be recorded",
+    "performance_cert.completed_success": "Performance certificates compared",
+    "performance_cert.completed_failed": "Performance certificate comparison failed",
 }
