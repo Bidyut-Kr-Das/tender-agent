@@ -13,6 +13,8 @@ from database.connection import get_session
 from database.models import Webhook, new_webhook_secret
 from intelligence.subagents.item.graph import get_item_graph
 from intelligence.subagents.search.graph import get_search_graph
+from relevance.nodes.category import add_category_feedback
+from relevance.prompts import PROMPTS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 
@@ -47,6 +49,21 @@ class ItemResponse(BaseModel):
     item_names: list[str] = Field(default_factory=list)
     status: str
     error: str | None = None
+
+
+class CategoryFeedbackRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    brief: str = Field(..., min_length=1)
+    company: str = Field(..., min_length=1)
+    category: str = Field(..., min_length=1)
+    reference_no: str | None = Field(default=None, alias="referenceNo")
+    note: str | None = None
+
+
+class CategoryFeedbackResponse(BaseModel):
+    id: str
+    status: str
 
 
 @app.get("/health")
@@ -88,6 +105,16 @@ def item(req: ItemRequest):
         status=result.get("status") or "unknown",
         error=result.get("error"),
     )
+
+
+@app.post("/category-feedback", response_model=CategoryFeedbackResponse, status_code=201)
+def category_feedback(req: CategoryFeedbackRequest):
+    company, category = req.company.strip().lower(), req.category.strip().lower()
+    if f"{company}_{category}" not in PROMPTS:
+        raise HTTPException(status_code=422, detail=f"unknown category {category!r} for company {company!r}")
+    ref = (req.reference_no or "").strip() or None
+    point_id = add_category_feedback(req.brief.strip(), company, category, ref, req.note)
+    return CategoryFeedbackResponse(id=point_id, status="indexed")
 
 
 # --- Webhook registration -------------------------------------------------
