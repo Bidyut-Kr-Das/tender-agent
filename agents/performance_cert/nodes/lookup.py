@@ -16,7 +16,8 @@ from pydantic import BaseModel
 
 from lib.core.config import settings
 from lib.core.llm import get_llm
-from agents.performance_cert.nodes.decide import MIN_CONFIDENCE, _get_client
+from agents.performance_cert.nodes.decide import MIN_CONFIDENCE
+from lib.core.jev import get_jev
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def _party_match(ref: str | None, cert_party: str | None, supply_parties: list[s
     try:
         from typesafe_sdk import Choice
 
-        result = _get_client().system_one(
+        result = get_jev(settings.typesafe_api_key, settings.typesafe_model).system_one(
             state={
                 "party_reference_no": party_ref_no,
                 "certificate_issuer": cert_party,
@@ -198,7 +199,7 @@ if __name__ == "__main__":
 
     g = _enrich.__globals__
     jev = types.SimpleNamespace(choices={"party": types.SimpleNamespace(choice="same", confidence=0.9)})
-    g["_get_client"] = lambda: types.SimpleNamespace(system_one=lambda **kw: jev)
+    g["get_jev"] = lambda *a: types.SimpleNamespace(system_one=lambda **kw: jev)
     sys.modules["typesafe_sdk"] = types.SimpleNamespace(Choice=lambda **kw: kw)
     picks = SchedulePicks(picks=[ItemPick(item="x", schedule="LT ABC"), ItemPick(item="y", schedule="MADE UP")])
     g["get_llm"] = lambda: types.SimpleNamespace(
@@ -226,7 +227,7 @@ if __name__ == "__main__":
     assert r["party_match"] == "needs_review", r
 
     # exact name -> same without JEV
-    g["_get_client"] = lambda: (_ for _ in ()).throw(AssertionError("jev called"))
+    g["get_jev"] = lambda *a: (_ for _ in ()).throw(AssertionError("jev called"))
     [r] = asyncio.run(_enrich("R4", [{**base, "party_name": "wbsedcl"}], fake_call(rows)))
     assert r["party_match"] == "same", r
 

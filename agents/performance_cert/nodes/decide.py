@@ -1,37 +1,14 @@
 import logging
-import threading
 from typing import Any
 
 from lib.core.config import settings
+from lib.core.jev import DEFAULT_MODEL, get_jev
 
 logger = logging.getLogger(__name__)
 
 CHOICES = ("identical", "different", "needs_review")
 # below this JEV is guessing, and a certificate verdict is high-stakes: never guess
 MIN_CONFIDENCE = 0.5
-
-# ponytail: one shared JEV client per process, same shape as lib/core/llm.py
-_client = None
-_lock = threading.Lock()
-
-
-def _get_client():
-    global _client
-    if _client is not None:
-        return _client
-    with _lock:
-        if _client is None:
-            api_key = (getattr(settings, "typesafe_api_key", None) or "").strip()
-            if not api_key:
-                raise ValueError("TYPESAFE_API_KEY missing (set in .env)")
-            from typesafe_sdk import TypeSafeClient  # local: a missing dep fails this job, not the worker
-
-            _client = TypeSafeClient(
-                api_key=api_key,
-                model=getattr(settings, "typesafe_model", None) or "jev-latest",
-            )
-    return _client
-
 
 def _evidence(state: dict[str, Any], duplicates: list, unresolved: list) -> dict[str, Any]:
     """Filtered structured evidence for JEV. Never raw page text: state is text-only and capped ~32k tokens."""
@@ -54,7 +31,7 @@ def _ask_jev(state: dict[str, Any], duplicates: list, unresolved: list):
     """Returns (decision, reliability_score, model). Raises on any JEV failure."""
     from typesafe_sdk import Choice, Score
 
-    client = _get_client()
+    client = get_jev(settings.typesafe_api_key, settings.typesafe_model)
     result = client.system_one(
         state=_evidence(state, duplicates, unresolved),
         questions={
@@ -98,7 +75,7 @@ def _ask_jev(state: dict[str, Any], duplicates: list, unresolved: list):
     except Exception:  # a missing score is not worth failing a decided verdict
         logger.warning("jev ref=%s no extraction_reliability score", state.get("job_id"))
 
-    model = getattr(settings, "typesafe_model", None) or "jev-latest"
+    model = settings.typesafe_model or DEFAULT_MODEL
     return decision, score, model
 
 
@@ -165,7 +142,7 @@ if __name__ == "__main__":
         choices={"verdict": types.SimpleNamespace(choice="identical", confidence=0.97)},
         scores={"extraction_reliability": types.SimpleNamespace(score=0.9)},
     )
-    decide.__globals__["_client"] = types.SimpleNamespace(system_one=lambda **kw: fake)
+    decide.__globals__["get_jev"] = lambda *a: types.SimpleNamespace(system_one=lambda **kw: fake)
     sys.modules["typesafe_sdk"] = types.SimpleNamespace(Choice=lambda **kw: kw, Score=lambda **kw: kw)
     r = decide({"job_id": "R3", "unresolved": [{"kind": "amount", "similarity": 0.81}]})
     assert r["decision"] == "identical" and r["report"]["model"] and r["status"] == "decided", r
@@ -179,7 +156,7 @@ if __name__ == "__main__":
     def boom(**kw):
         raise RuntimeError("no api key")
 
-    decide.__globals__["_client"] = types.SimpleNamespace(system_one=boom)
+    decide.__globals__["get_jev"] = lambda *a: types.SimpleNamespace(system_one=boom)
     r = decide({"job_id": "R5", "unresolved": [{"kind": "page"}]})
     assert r["decision"] == "needs_review" and r["status"] == "failed" and "RuntimeError" in r["error"], r
     print("decide ok")
