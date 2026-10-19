@@ -141,10 +141,13 @@ async def _enrich(ref: str | None, details: list[dict], call) -> list[dict]:
 
 
 async def _run(ref: str | None, details: list[dict], url: str, key: str) -> list[dict]:
+    import httpx
     from mcp import ClientSession
-    from mcp.client.streamable_http import streamablehttp_client
+    from mcp.client.streamable_http import streamable_http_client
 
-    async with streamablehttp_client(url, headers={"x-api-key": key}) as (read, write, _):
+    # same timeouts the deprecated streamablehttp_client used: 30s, 300s read for the SSE stream
+    http = httpx.AsyncClient(headers={"x-api-key": key}, timeout=httpx.Timeout(30, read=300))
+    async with http, streamable_http_client(url, http_client=http) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
 
