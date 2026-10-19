@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     # reranker (cross-encoder) — ponytail: env-driven, no hardcode in nodes
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     rerank_device: str = "cpu"
+    # cross_encoder | jev (jev needs typesafe_api_key)
+    rerank_backend: str = "cross_encoder"
 
     # chat llm — ponytail: one knob for every node, was hardcoded gpt-4o-mini in six files
     chat_model: str = "gpt-5.6-luna"
@@ -127,6 +129,7 @@ class Settings(BaseSettings):
         "category_collection",
         "rerank_model",
         "rerank_device",
+        "rerank_backend",
         "chat_model",
         "ted_webhook_url",
         "laser_url",

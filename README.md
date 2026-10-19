@@ -359,6 +359,7 @@ Copy `.env.example` → `.env`. All settings resolve through `lib/core/config.py
 | `CHAT_MODEL` | | `gpt-4o-mini` | LLM for every node. One knob — the shared client lives in `lib/core/llm.py` |
 | `RERANK_MODEL` | | `cross-encoder/ms-marco-MiniLM-L-6-v2` | CrossEncoder model |
 | `RERANK_DEVICE` | | `cpu` | Set `cuda` where a GPU exists |
+| `RERANK_BACKEND` | | `cross_encoder` | `jev` asks JEV relevant/irrelevant per hit (one call per search, needs `TYPESAFE_API_KEY`) |
 | `LANGFUSE_ENABLED` | | `false` | Tracing off by default; `LANGFUSE_PUBLIC_KEY` / `SECRET_KEY` / `HOST` when enabled |
 | `GOOGLE_OAUTH_CLIENT_ID` | Drive only | — | Desktop OAuth client |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Drive only | — | |
