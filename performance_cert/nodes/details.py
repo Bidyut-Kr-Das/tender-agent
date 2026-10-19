@@ -1,4 +1,4 @@
-"""LLM extraction of issue/signing dates and the party reference from each unique PDF.
+"""LLM extraction of dates, party reference, issuer and items from each unique PDF.
 
 The raw pdf bytes go to the model as-is (not the docling markdown): the certificate layout
 carries the dates and the reference number, and re-rendering it as text can lose them.
@@ -8,6 +8,7 @@ One file, one call; any per-file failure degrades to nulls so the job never dies
 import base64
 import logging
 from pathlib import Path
+from typing import Literal
 
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
@@ -21,6 +22,10 @@ PROMPT = (
     "- issuing_date: the date the certificate was issued\n"
     "- signing_date: the date it was signed\n"
     "- party_reference_no: the party/vendor reference number (e.g. LC/WBSEDCL/... or a PO/reference no)\n"
+    "- party_name: the organisation that issued the certificate (letterhead or signatory's organisation)\n"
+    "- utility_or_client: UTILITY if that organisation is a government department, state electricity board, "
+    "discom/transco/genco, PSU, railways, municipal or other public body; CLIENT if it is a private company or contractor\n"
+    "- items: each supplied item description exactly as written in the certificate\n"
     "Return null for any field that is not present in the document. Never guess or infer a value."
 )
 
@@ -29,6 +34,9 @@ class CertDetails(BaseModel):
     issuing_date: str | None = None
     signing_date: str | None = None
     party_reference_no: str | None = None
+    party_name: str | None = None
+    utility_or_client: Literal["UTILITY", "CLIENT"] | None = None
+    items: list[str] = []
 
 
 def _empty(uf: dict) -> dict:
@@ -38,6 +46,9 @@ def _empty(uf: dict) -> dict:
         "issuing_date": None,
         "signing_date": None,
         "party_reference_no": None,
+        "party_name": None,
+        "utility_or_client": None,
+        "items": [],
     }
 
 
@@ -67,6 +78,9 @@ def details(state: dict) -> dict:
                 entry["issuing_date"] = res.issuing_date
                 entry["signing_date"] = res.signing_date
                 entry["party_reference_no"] = res.party_reference_no
+                entry["party_name"] = res.party_name
+                entry["utility_or_client"] = res.utility_or_client
+                entry["items"] = res.items
         except Exception as e:
             logger.error("details ref=%s file=%s error=%s", ref, uf.get("file_path"), f"{type(e).__name__}: {e}", exc_info=True)
         out.append(entry)
@@ -102,7 +116,14 @@ if __name__ == "__main__":
         {"certificate_id": "C2", "sha256": "h2", "file_name": "b.pdf", "file_path": paths[1]},
     ]
 
-    got = CertDetails(issuing_date="2024-01-01", signing_date="2024-01-02", party_reference_no="LC/WBSEDCL/1")
+    got = CertDetails(
+        issuing_date="2024-01-01",
+        signing_date="2024-01-02",
+        party_reference_no="LC/WBSEDCL/1",
+        party_name="WBSEDCL",
+        utility_or_client="UTILITY",
+        items=["3C x 300 SQMM XLPE 11KV"],
+    )
     details.__globals__["get_llm"] = lambda: FakeLLM(res=got)
     r = details({"job_id": "R1", "unique_files": unique_files})
     assert len(r["details"]) == 2, r
@@ -112,6 +133,9 @@ if __name__ == "__main__":
         "issuing_date": "2024-01-01",
         "signing_date": "2024-01-02",
         "party_reference_no": "LC/WBSEDCL/1",
+        "party_name": "WBSEDCL",
+        "utility_or_client": "UTILITY",
+        "items": ["3C x 300 SQMM XLPE 11KV"],
     }, r
     assert r["details"][1]["certificate_id"] == "C2", r
 

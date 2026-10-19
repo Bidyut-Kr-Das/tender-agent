@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     typesafe_model: str = "jev-latest"
     performance_cert_max_pdfs: int = 30
 
+    # tender-executive-dashboard MCP (supply history + item catalog); empty disables the lookup
+    dashboard_mcp_url: str | None = None
+    dashboard_api_key: str | None = None
+
     # ponytail: one strip validator for every optional string, was the same four lines x4
     @field_validator(
         "google_oauth_client_id",
@@ -129,6 +133,8 @@ class Settings(BaseSettings):
         "gmd_url",
         "typesafe_api_key",
         "typesafe_model",
+        "dashboard_mcp_url",
+        "dashboard_api_key",
         mode="before",
     )
     @classmethod
